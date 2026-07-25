@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { contratosApi, paquetesApi, eventosApi } from '../../api';
+import { contratosApi, paquetesApi, eventosApi, documentosApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { Contrato, ContratoRequest, Paquete, Evento } from '../../types';
@@ -57,7 +57,6 @@ export function ContratosPage() {
   };
 
   const generarPdf = async (contratoId: number) => {
-    const { documentosApi } = await import('../../api');
     const doc = await documentosApi.generar(contratoId);
     window.open(doc.urlPdf, '_blank');
   };
