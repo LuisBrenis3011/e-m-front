@@ -1,0 +1,11 @@
+export { authApi } from './auth';
+export { categoriasApi } from './categorias';
+export { clientesApi } from './clientes';
+export { inventarioApi } from './inventario';
+export { paquetesApi } from './paquetes';
+export { eventosApi } from './eventos';
+export { contratosApi } from './contratos';
+export { pagosApi } from './pagos';
+export { plantillasApi } from './plantillas';
+export { dashboardApi } from './dashboard';
+export { documentosApi } from './documentos';
