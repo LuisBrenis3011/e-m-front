@@ -186,12 +186,15 @@ export interface Evento {
   id: number;
   clienteId: number;
   clienteNombre: string;
+  categoriaId: number;
+  categoriaNombre: string;
   tipoEvento: string;
   nombreCumpleanero: string;
   edadCumpleanero: number;
   fechaEvento: string;
   horaInicio: string;
   horaFinEstimada: string;
+  direccion: string;
   referencia: string;
   aforoEstimado: number;
   colorCalendario: string;
@@ -202,12 +205,14 @@ export interface Evento {
 
 export interface EventoRequest {
   clienteId: number;
+  categoriaId: number;
   tipoEvento: string;
   nombreCumpleanero: string;
   edadCumpleanero: number;
   fechaEvento: string;
   horaInicio: string;
   horaFinEstimada: string;
+  direccion: string;
   referencia: string;
   aforoEstimado: number;
   colorCalendario: string;

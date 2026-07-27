@@ -2,14 +2,14 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { eventosApi, clientesApi } from '../../api';
-import type { Evento, EventoRequest, Cliente } from '../../types';
+import { eventosApi, clientesApi, categoriasApi } from '../../api';
+import type { Evento, EventoRequest, Cliente, Categoria } from '../../types';
 import { ESTADOS_EVENTO, TIPOS_EVENTO, COLORES_CALENDARIO } from '../../utils/constants';
 
 const emptyForm: EventoRequest = {
-  clienteId: 0, tipoEvento: 'SHOW INFANTIL', nombreCumpleanero: '',
+  clienteId: 0, categoriaId: 0, tipoEvento: 'SHOW INFANTIL', nombreCumpleanero: '',
   edadCumpleanero: 0, fechaEvento: '', horaInicio: '', horaFinEstimada: '',
-  referencia: '', aforoEstimado: 0, colorCalendario: '#3B82F6', notasInternas: '',
+  direccion: '', referencia: '', aforoEstimado: 0, colorCalendario: '#3B82F6', notasInternas: '',
 };
 
 export function CronogramaPage() {
@@ -21,6 +21,9 @@ export function CronogramaPage() {
   const [selectedEvent, setSelectedEvent] = useState<Evento | null>(null);
   const [form, setForm] = useState<EventoRequest>(emptyForm);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const loadEventos = useCallback(async () => {
     const calApi = calendarRef.current?.getApi();
@@ -35,10 +38,12 @@ export function CronogramaPage() {
   useEffect(() => {
     loadEventos();
     clientesApi.getAll(0, 100).then((r) => setClientes(r.content));
+    categoriasApi.getAll().then(setCategorias);
   }, [loadEventos]);
 
   const handleDateSelect = (arg: { startStr: string }) => {
     setEditing(null);
+    setError('');
     setForm({ ...emptyForm, fechaEvento: arg.startStr.split('T')[0] });
     setShowForm(true);
   };
@@ -52,13 +57,57 @@ export function CronogramaPage() {
   };
 
   const handleSubmit = async () => {
-    if (editing) {
-      await eventosApi.update(editing.id, form);
-    } else {
-      await eventosApi.create(form);
+    setError('');
+
+    if (form.clienteId === 0) {
+      setError('Seleccione un cliente.');
+      return;
     }
-    setShowForm(false);
-    loadEventos();
+    if (form.categoriaId === 0) {
+      setError('Seleccione una categoria.');
+      return;
+    }
+    if (!form.fechaEvento) {
+      setError('Seleccione una fecha.');
+      return;
+    }
+    if (!form.horaInicio) {
+      setError('Ingrese la hora de inicio.');
+      return;
+    }
+    if (!form.horaFinEstimada) {
+      setError('Ingrese la hora fin estimada.');
+      return;
+    }
+    if (!form.direccion.trim()) {
+      setError('Ingrese la direccion del evento.');
+      return;
+    }
+
+    const payload = {
+      ...form,
+      horaInicio: form.horaInicio.length === 5 ? form.horaInicio + ':00' : form.horaInicio,
+      horaFinEstimada: form.horaFinEstimada.length === 5 ? form.horaFinEstimada + ':00' : form.horaFinEstimada,
+    };
+
+    setLoading(true);
+    try {
+      if (editing) {
+        await eventosApi.update(editing.id, payload);
+      } else {
+        await eventosApi.create(payload);
+      }
+      setShowForm(false);
+      await loadEventos();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message
+        ?? err?.response?.data?.errors
+        ? JSON.stringify(err.response.data.errors)
+        : 'Error al guardar el evento. Verifique los datos.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const changeEstado = async (id: number, estado: string) => {
@@ -106,11 +155,24 @@ export function CronogramaPage() {
           <div style={{ ...styles.modalCard, maxWidth: '560px' }}>
             <h3>{editing ? 'Editar Evento' : 'Nuevo Evento'}</h3>
 
+            {error && (
+              <div style={{ backgroundColor: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '12px' }}>
+                {error}
+              </div>
+            )}
+
             <div style={{ marginBottom: '10px' }}>
-              <label style={labelStyle}>Cliente</label>
+              <label style={labelStyle}>Cliente *</label>
               <select value={form.clienteId} onChange={(e) => setForm((p) => ({ ...p, clienteId: Number(e.target.value) }))} style={inputStyle}>
                 <option value={0}>Seleccionar...</option>
                 {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombreCompleto}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Categoria *</label>
+              <select value={form.categoriaId} onChange={(e) => setForm((p) => ({ ...p, categoriaId: Number(e.target.value) }))} style={inputStyle}>
+                <option value={0}>Seleccionar...</option>
+                {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
             <div style={{ marginBottom: '10px' }}>
@@ -131,21 +193,25 @@ export function CronogramaPage() {
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               <div style={{ flex: 1, marginBottom: '10px' }}>
-                <label style={labelStyle}>Fecha</label>
+                <label style={labelStyle}>Fecha *</label>
                 <input type="date" value={form.fechaEvento} onChange={(e) => setForm((p) => ({ ...p, fechaEvento: e.target.value }))} style={inputStyle} />
               </div>
               <div style={{ flex: 1, marginBottom: '10px' }}>
-                <label style={labelStyle}>Hora Inicio</label>
-                <input type="time" value={form.horaInicio} onChange={(e) => setForm((p) => ({ ...p, horaInicio: e.target.value + ':00' }))} style={inputStyle} />
+                <label style={labelStyle}>Hora Inicio *</label>
+                <input type="time" value={form.horaInicio.substring(0, 5)} onChange={(e) => setForm((p) => ({ ...p, horaInicio: e.target.value }))} style={inputStyle} />
               </div>
             </div>
             <div style={{ marginBottom: '10px' }}>
-              <label style={labelStyle}>Hora Fin Estimada</label>
-              <input type="time" value={form.horaFinEstimada} onChange={(e) => setForm((p) => ({ ...p, horaFinEstimada: e.target.value + ':00' }))} style={inputStyle} />
+              <label style={labelStyle}>Hora Fin Estimada *</label>
+              <input type="time" value={form.horaFinEstimada.substring(0, 5)} onChange={(e) => setForm((p) => ({ ...p, horaFinEstimada: e.target.value }))} style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Direccion *</label>
+              <input value={form.direccion} onChange={(e) => setForm((p) => ({ ...p, direccion: e.target.value }))} style={inputStyle} placeholder="Lugar del evento" />
             </div>
             <div style={{ marginBottom: '10px' }}>
               <label style={labelStyle}>Referencia</label>
-              <input value={form.referencia} onChange={(e) => setForm((p) => ({ ...p, referencia: e.target.value }))} style={inputStyle} />
+              <input value={form.referencia} onChange={(e) => setForm((p) => ({ ...p, referencia: e.target.value }))} style={inputStyle} placeholder="Referencia adicional" />
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               <div style={{ flex: 1, marginBottom: '10px' }}>
@@ -154,9 +220,21 @@ export function CronogramaPage() {
               </div>
               <div style={{ flex: 1, marginBottom: '10px' }}>
                 <label style={labelStyle}>Color</label>
-                <select value={form.colorCalendario} onChange={(e) => setForm((p) => ({ ...p, colorCalendario: e.target.value }))} style={inputStyle}>
-                  {COLORES_CALENDARIO.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: '4px' }}>
+                  {COLORES_CALENDARIO.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, colorCalendario: color }))}
+                      style={{
+                        width: '28px', height: '28px', borderRadius: '50%',
+                        backgroundColor: color, border: form.colorCalendario === color ? '3px solid #1e293b' : '2px solid #e2e8f0',
+                        cursor: 'pointer', outline: 'none',
+                      }}
+                      title={color}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
             <div style={{ marginBottom: '10px' }}>
@@ -165,7 +243,9 @@ export function CronogramaPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button onClick={handleSubmit} style={{ ...styles.addBtn, flex: 1 }}>Guardar</button>
+              <button onClick={handleSubmit} disabled={loading} style={{ ...styles.addBtn, flex: 1 }}>
+                {loading ? 'Guardando...' : 'Guardar'}
+              </button>
               <button onClick={() => setShowForm(false)} style={cancelBtnStyle}>Cancelar</button>
             </div>
           </div>
