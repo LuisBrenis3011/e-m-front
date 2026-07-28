@@ -103,7 +103,6 @@ export interface Tematica {
   id: number;
   nombre: string;
   imagenReferencial: string | null;
-  categoria: Categoria;
 }
 
 export interface Cliente {
@@ -188,6 +187,8 @@ export interface Evento {
   clienteNombre: string;
   categoriaId: number;
   categoriaNombre: string;
+  tematicaId: number | null;
+  tematicaNombre: string | null;
   tipoEvento: string;
   nombreCumpleanero: string;
   edadCumpleanero: number;
@@ -200,18 +201,18 @@ export interface Evento {
   colorCalendario: string;
   notasInternas: string;
   estado: EstadoEvento;
-  tematicaNombre: string | null;
 }
 
 export interface EventoRequest {
   clienteId: number;
   categoriaId: number;
+  tematicaId?: number | null;
   tipoEvento: string;
   nombreCumpleanero: string;
   edadCumpleanero: number;
   fechaEvento: string;
   horaInicio: string;
-  horaFinEstimada: string;
+  horaFinEstimada?: string;
   direccion: string;
   referencia: string;
   aforoEstimado: number;

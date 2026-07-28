@@ -5,6 +5,8 @@ import { MainLayout } from './components/layout/MainLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { CategoriasPage } from './pages/categorias/CategoriasPage';
+import { TematicasPage } from './pages/tematicas/TematicasPage';
 import { ClientesPage } from './pages/clientes/ClientesPage';
 import { InventarioPage } from './pages/inventario/InventarioPage';
 import { PaquetesPage } from './pages/paquetes/PaquetesPage';
@@ -25,6 +27,8 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/categorias" element={<CategoriasPage />} />
+              <Route path="/tematicas" element={<TematicasPage />} />
               <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/inventario" element={<InventarioPage />} />
               <Route path="/paquetes" element={<PaquetesPage />} />

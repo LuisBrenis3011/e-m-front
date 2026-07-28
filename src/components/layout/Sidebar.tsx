@@ -3,6 +3,8 @@ import { useAuth } from '../../hooks/useAuth';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { path: '/categorias', label: 'Categorias', icon: '🏷️' },
+  { path: '/tematicas', label: 'Tematicas', icon: '🎨' },
   { path: '/clientes', label: 'Clientes', icon: '👥' },
   { path: '/inventario', label: 'Inventario', icon: '📦' },
   { path: '/paquetes', label: 'Paquetes', icon: '🎁' },

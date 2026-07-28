@@ -34,11 +34,6 @@ export const TIPOS_PLANTILLA = [
   { value: 'PROFORMA', label: 'Proforma' },
 ] as const;
 
-export const TIPOS_EVENTO = [
-  { value: 'SHOW INFANTIL', label: 'Show Infantil' },
-  { value: 'HORA LOCA', label: 'Hora Loca' },
-] as const;
-
 export const COLORES_CALENDARIO = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
   '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16',
