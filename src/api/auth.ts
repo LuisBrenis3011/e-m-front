@@ -21,4 +21,7 @@ export const authApi = {
 
   updateProveedor: (data: Partial<Proveedor>) =>
     api.put<Proveedor>('/auth/proveedor', data).then((r) => r.data),
+
+  changePassword: (oldPassword: string, newPassword: string) =>
+    api.post('/auth/change-password', { oldPassword, newPassword }),
 };
