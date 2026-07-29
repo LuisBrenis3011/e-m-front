@@ -19,6 +19,8 @@ export function ContratosPage() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [paquetes, setPaquetes] = useState<Paquete[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloadError, setDownloadError] = useState('');
+  const [downloading, setDownloading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,25 +59,39 @@ export function ContratosPage() {
   };
 
   const generarPdf = async (contratoId: number) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`/api/documentos/generar/${contratoId}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
+    setDownloadError('');
+    setDownloading(true);
+    try {
+      const token = localStorage.getItem('token');
 
-    const pdf = await fetch(`/api/documentos/descargar/${data.id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const blob = await pdf.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `contrato_${contratoId}_v${data.version}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+      const genRes = await fetch(`/api/documentos/generar/${contratoId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!genRes.ok) {
+        const err = await genRes.json();
+        setDownloadError(err.message ?? 'Error al generar PDF.');
+        return;
+      }
+
+      const data = await genRes.json();
+
+      const dlRes = await fetch(`/api/documentos/descargar/${data.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await dlRes.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contrato_${contratoId}_v${data.version}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setDownloadError('Error de conexion al generar el PDF.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const getEstadoColor = (estado: string) => {
@@ -89,6 +105,12 @@ export function ContratosPage() {
         <h2 style={{ margin: 0, color: '#1e293b' }}>Contratos</h2>
         <button onClick={openCreate} style={styles.addBtn}>+ Nuevo Contrato</button>
       </div>
+
+      {downloadError && (
+        <div style={{ backgroundColor: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '12px' }}>
+          {downloadError} <button onClick={() => setDownloadError('')} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>X</button>
+        </div>
+      )}
 
       <DataTable
         data={data ? { content: data, totalElements: data.length, totalPages: 1, number: 0, size: data.length, first: true, last: true } : null}
@@ -107,7 +129,9 @@ export function ContratosPage() {
             render: (c) => (
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => openDetail(c)} style={styles.actionBtn}>Ver</button>
-                <button onClick={() => generarPdf(c.id)} style={styles.actionBtn}>PDF</button>
+                <button onClick={() => generarPdf(c.id)} disabled={downloading} style={styles.actionBtn}>
+                  {downloading ? '...' : 'PDF'}
+                </button>
               </div>
             ),
           },
@@ -195,8 +219,16 @@ export function ContratosPage() {
               </div>
             </div>
 
+            {downloadError && (
+              <div style={{ backgroundColor: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginTop: '14px' }}>
+                {downloadError}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button onClick={() => { generarPdf(selectedContrato.id); }} style={{ ...styles.addBtn, flex: 1 }}>Generar PDF</button>
+              <button onClick={() => { generarPdf(selectedContrato.id); }} disabled={downloading} style={{ ...styles.addBtn, flex: 1 }}>
+                {downloading ? 'Generando...' : 'Generar PDF'}
+              </button>
               <button onClick={() => setShowDetail(false)} style={cancelBtnStyle}>Cerrar</button>
             </div>
           </div>

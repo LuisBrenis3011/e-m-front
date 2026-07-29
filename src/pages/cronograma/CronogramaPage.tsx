@@ -400,7 +400,7 @@ export function CronogramaPage() {
       {/* Modal: Formulario crear/editar evento */}
       {showForm && (
         <div style={overlayStyle}>
-          <div style={{ ...panelStyle, maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ ...panelStyle, maxWidth: '560px', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>
                 {editing ? 'Editar Evento' : 'Nuevo Evento'}
