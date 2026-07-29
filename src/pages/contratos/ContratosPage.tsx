@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { contratosApi, paquetesApi, eventosApi, documentosApi } from '../../api';
+import { contratosApi, paquetesApi, eventosApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { Contrato, ContratoRequest, Paquete, Evento } from '../../types';
@@ -57,8 +57,25 @@ export function ContratosPage() {
   };
 
   const generarPdf = async (contratoId: number) => {
-    const doc = await documentosApi.generar(contratoId);
-    window.open(doc.urlPdf, '_blank');
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api/documentos/generar/${contratoId}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+
+    const pdf = await fetch(`/api/documentos/descargar/${data.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await pdf.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contrato_${contratoId}_v${data.version}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const getEstadoColor = (estado: string) => {

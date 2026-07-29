@@ -6,6 +6,8 @@ export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
+    nombre: '',
+    apellido: '',
     email: '',
     password: '',
     telefono: '',
@@ -26,10 +28,17 @@ export function RegisterPage() {
     setError('');
     setLoading(true);
     try {
+      console.log('Enviando registro:', form);
       await register(form);
       navigate('/dashboard');
-    } catch {
-      setError('Error al registrar. Verifique los datos.');
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.errors
+          ? Object.entries(err.response.data.errors)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(', ')
+          : err?.response?.data?.message ?? 'Error al registrar. Verifique los datos.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -42,6 +51,27 @@ export function RegisterPage() {
         <p style={styles.subtitle}>Complete los datos de su empresa</p>
 
         {error && <div style={styles.error}>{error}</div>}
+
+        <div style={styles.row}>
+          <div style={styles.field}>
+            <label style={styles.label}>Nombre *</label>
+            <input
+              value={form.nombre}
+              onChange={handleChange('nombre')}
+              style={styles.input}
+              required
+            />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Apellido *</label>
+            <input
+              value={form.apellido}
+              onChange={handleChange('apellido')}
+              style={styles.input}
+              required
+            />
+          </div>
+        </div>
 
         <div style={styles.row}>
           <div style={styles.field}>
