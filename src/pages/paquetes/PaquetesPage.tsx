@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { paquetesApi, categoriasApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
-import type { Paquete, PaqueteRequest, Categoria, Tematica, Inventario } from '../../types';
+import type { Paquete, PaqueteRequest, Categoria, Inventario } from '../../types';
 import { inventarioApi } from '../../api';
 
 const emptyForm: PaqueteRequest = {
-  nombre: '', descripcion: '', categoriaId: 0, tematicaId: 0,
+  nombre: '', descripcion: '', categoriaId: 0,
   precioBase: 0, duracionBaseHoras: 0, detalles: [],
 };
 
@@ -15,7 +15,6 @@ export function PaquetesPage() {
   const [editing, setEditing] = useState<Paquete | null>(null);
   const [form, setForm] = useState<PaqueteRequest>(emptyForm);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [tematicas, setTematicas] = useState<Tematica[]>([]);
   const [inventario, setInventario] = useState<Inventario[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInventarioId, setSelectedInventarioId] = useState(0);
@@ -26,7 +25,7 @@ export function PaquetesPage() {
     setLoading(true);
     try {
       const res = await paquetesApi.getAll();
-      setData(res.content);
+      setData(res.content.filter((p) => p.estado === 'ACTIVO'));
     } finally {
       setLoading(false);
     }
@@ -38,21 +37,14 @@ export function PaquetesPage() {
     inventarioApi.getAll().then((r) => setInventario(r.content));
   }, [load]);
 
-  const loadTematicas = async (catId: number) => {
-    if (!catId) { setTematicas([]); return; }
-    const res = await categoriasApi.getTematicasByCategoria(catId);
-    setTematicas(res);
-  };
-
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
   const openEdit = (p: Paquete) => {
     setEditing(p);
     setForm({
       nombre: p.nombre, descripcion: p.descripcion, categoriaId: p.categoriaId,
-      tematicaId: p.tematicaId, precioBase: p.precioBase, duracionBaseHoras: p.duracionBaseHoras,
+      precioBase: p.precioBase, duracionBaseHoras: p.duracionBaseHoras,
       detalles: p.detalles.map((d) => ({ inventarioId: d.inventarioId, cantidadIncluida: d.cantidadIncluida, precioUnitario: d.precioUnitario, esObsequio: d.esObsequio })),
     });
-    if (p.categoriaId) loadTematicas(p.categoriaId);
     setShowForm(true);
   };
 
@@ -102,7 +94,6 @@ export function PaquetesPage() {
         columns={[
           { key: 'nombre', header: 'Nombre' },
           { key: 'categoriaNombre', header: 'Categoria' },
-          { key: 'tematicaNombre', header: 'Tematica' },
           { key: 'precioBase', header: 'Precio Base' },
           { key: 'estado', header: 'Estado' },
           {
@@ -138,20 +129,14 @@ export function PaquetesPage() {
                 <label style={labelStyle}>Categoria</label>
                 <select
                   value={form.categoriaId}
-                  onChange={(e) => { const v = Number(e.target.value); setForm((p) => ({ ...p, categoriaId: v, tematicaId: 0 })); loadTematicas(v); }}
+                  onChange={(e) => setForm((p) => ({ ...p, categoriaId: Number(e.target.value) }))}
                   style={inputStyle}
                 >
                   <option value={0}>Seleccionar...</option>
                   {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
-              <div style={{ flex: 1, marginBottom: '10px' }}>
-                <label style={labelStyle}>Tematica</label>
-                <select value={form.tematicaId} onChange={(e) => setForm((p) => ({ ...p, tematicaId: Number(e.target.value) }))} style={inputStyle}>
-                  <option value={0}>Seleccionar...</option>
-                  {tematicas.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                </select>
-              </div>
+              <div style={{ flex: 1, marginBottom: '10px' }} />
             </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>
