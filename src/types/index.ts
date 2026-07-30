@@ -58,11 +58,19 @@ export interface RegisterRequest {
   email: string;
   password: string;
   telefono: string;
+  ruc: string;
+}
+
+export interface RegisterEmpresaRequest {
   nombreEmpresa: string;
   ruc: string;
   nombreGerente: string;
   direccion: string;
-  telefonoEmpresa: string;
+  telefono: string;
+  adminNombre: string;
+  adminApellido: string;
+  adminEmail: string;
+  adminPassword: string;
 }
 
 export interface JwtResponse {

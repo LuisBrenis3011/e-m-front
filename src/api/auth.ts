@@ -2,6 +2,7 @@ import api from './client';
 import type {
   LoginRequest,
   RegisterRequest,
+  RegisterEmpresaRequest,
   JwtResponse,
   Usuario,
   Proveedor,
@@ -13,6 +14,9 @@ export const authApi = {
 
   register: (data: RegisterRequest) =>
     api.post<JwtResponse>('/auth/register', data).then((r) => r.data),
+
+  registerEmpresa: (data: RegisterEmpresaRequest) =>
+    api.post<JwtResponse>('/auth/register-empresa', data).then((r) => r.data),
 
   me: () => api.get<Usuario>('/auth/me').then((r) => r.data),
 

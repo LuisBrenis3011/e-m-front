@@ -57,7 +57,7 @@ export function LoginPage() {
         </button>
 
         <p style={styles.link}>
-          No tienes cuenta? <Link to="/register">Registrate aqui</Link>
+          <Link to="/register">Registrar empresa</Link> · <Link to="/register-account">Crear cuenta empleado</Link>
         </p>
       </form>
     </div>

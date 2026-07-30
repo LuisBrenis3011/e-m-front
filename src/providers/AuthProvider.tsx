@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { authApi } from '../api';
-import type { JwtResponse, Usuario, Proveedor } from '../types';
+import type { JwtResponse, Usuario, Proveedor, RegisterRequest, RegisterEmpresaRequest } from '../types';
 
 interface AuthContextType {
   user: JwtResponse | null;
@@ -8,7 +8,8 @@ interface AuthContextType {
   proveedor: Proveedor | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: Parameters<typeof authApi.register>[0]) => Promise<void>;
+  register: (data: RegisterRequest) => Promise<void>;
+  registerEmpresa: (data: RegisterEmpresaRequest) => Promise<void>;
   logout: () => void;
   refreshProveedor: () => Promise<void>;
 }
@@ -63,8 +64,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProveedor(prov);
   };
 
-  const register = async (data: Parameters<typeof authApi.register>[0]) => {
+  const register = async (data: RegisterRequest) => {
     const res = await authApi.register(data);
+    localStorage.setItem('token', res.token);
+    localStorage.setItem('user', JSON.stringify(res));
+    localStorage.setItem('proveedorId', String(res.proveedorId));
+    setUser(res);
+    const [me, prov] = await Promise.all([
+      authApi.me(),
+      authApi.getProveedor(),
+    ]);
+    setUsuario(me);
+    setProveedor(prov);
+  };
+
+  const registerEmpresa = async (data: RegisterEmpresaRequest) => {
+    const res = await authApi.registerEmpresa(data);
     localStorage.setItem('token', res.token);
     localStorage.setItem('user', JSON.stringify(res));
     localStorage.setItem('proveedorId', String(res.proveedorId));
@@ -93,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, usuario, proveedor, loading, login, register, logout, refreshProveedor }}
+      value={{ user, usuario, proveedor, loading, login, register, registerEmpresa, logout, refreshProveedor }}
     >
       {children}
     </AuthContext.Provider>
