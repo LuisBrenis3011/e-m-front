@@ -3,11 +3,12 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { eventosApi, clientesApi, categoriasApi } from '../../api';
-import type { Evento, EventoRequest, Cliente, Categoria, Tematica } from '../../types';
+import { paquetesApi } from '../../api';
+import type { Evento, EventoRequest, Cliente, Categoria, Tematica, Paquete } from '../../types';
 import { ESTADOS_EVENTO, COLORES_CALENDARIO } from '../../utils/constants';
 
 const emptyForm: EventoRequest = {
-  clienteId: 0, categoriaId: 0, tematicaId: null, tipoEvento: '',
+  clienteId: 0, categoriaId: 0, paqueteId: 0, tematicaId: null, tipoEvento: '',
   nombreCumpleanero: '', edadCumpleanero: 0,
   fechaEvento: '', horaInicio: '', horaFinEstimada: '',
   direccion: '', referencia: '', aforoEstimado: 0,
@@ -27,6 +28,7 @@ export function CronogramaPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [tematicas, setTematicas] = useState<Tematica[]>([]);
+  const [paquetes, setPaquetes] = useState<Paquete[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [quickCat, setQuickCat] = useState(false);
@@ -38,6 +40,8 @@ export function CronogramaPage() {
   const [quickTemNombre, setQuickTemNombre] = useState('');
   const [quickTemError, setQuickTemError] = useState('');
   const [quickTemSaving, setQuickTemSaving] = useState(false);
+  const [clienteSearch, setClienteSearch] = useState('');
+  const [showClienteDropdown, setShowClienteDropdown] = useState(false);
 
   const loadEventos = useCallback(async () => {
     const calApi = calendarRef.current?.getApi();
@@ -74,6 +78,8 @@ export function CronogramaPage() {
       setError('');
       setForm({ ...emptyForm, fechaEvento: arg.dateStr });
       setTematicas([]);
+      setClienteSearch('');
+      setShowClienteDropdown(false);
       setShowForm(true);
     }
   };
@@ -84,17 +90,23 @@ export function CronogramaPage() {
   };
 
   const handleCategoriaChange = async (categoriaId: number) => {
-    setForm((p) => ({ ...p, categoriaId, tematicaId: null }));
+    setForm((p) => ({ ...p, categoriaId, paqueteId: 0, tematicaId: null }));
     setTematicas([]);
+    setPaquetes([]);
     if (categoriaId === 0) return;
-    const res = await categoriasApi.getTematicasByCategoria(categoriaId);
-    setTematicas(res);
+    const [tems, pqs] = await Promise.all([
+      categoriasApi.getTematicasByCategoria(categoriaId),
+      paquetesApi.getAll(0, 50, categoriaId),
+    ]);
+    setTematicas(tems);
+    setPaquetes(pqs.content);
   };
 
   const handleSubmit = async () => {
     setError('');
     if (!form.clienteId) { setError('Seleccione un cliente.'); return; }
     if (!form.categoriaId) { setError('Seleccione una categoria.'); return; }
+    if (!form.paqueteId) { setError('Seleccione un paquete.'); return; }
     if (!form.fechaEvento) { setError('Seleccione una fecha.'); return; }
     if (!form.horaInicio) { setError('Ingrese la hora de inicio.'); return; }
     if (!form.direccion.trim()) { setError('Ingrese la direccion del evento.'); return; }
@@ -169,6 +181,16 @@ export function CronogramaPage() {
     } finally {
       setQuickTemSaving(false);
     }
+  };
+
+  const filteredClientes = clienteSearch
+    ? clientes.filter((c) => c.nombreCompleto.toLowerCase().includes(clienteSearch.toLowerCase()))
+    : clientes;
+
+  const handleSelectCliente = (c: Cliente) => {
+    setForm((p) => ({ ...p, clienteId: c.id, direccion: c.direccion, referencia: c.referencia }));
+    setClienteSearch(c.nombreCompleto);
+    setShowClienteDropdown(false);
   };
 
   const dayEvents = selectedDate ? eventosPorFecha[selectedDate] ?? [] : [];
@@ -258,7 +280,7 @@ export function CronogramaPage() {
                 </button>
               </div>
             </div>
-            <div style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
+            <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, paddingRight: '4px' }}>
               {dayEvents.map((ev) => (
                 <div
                   key={ev.id}
@@ -328,7 +350,7 @@ export function CronogramaPage() {
                 </div>
                 <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>{selectedEvent.clienteNombre}</h3>
                 <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#64748b' }}>
-                  {selectedEvent.categoriaNombre}{selectedEvent.tematicaNombre ? ` · ${selectedEvent.tematicaNombre}` : ''}
+                  {selectedEvent.categoriaNombre}{selectedEvent.paqueteNombre ? ` · ${selectedEvent.paqueteNombre}` : ''}{selectedEvent.tematicaNombre ? ` · ${selectedEvent.tematicaNombre}` : ''}
                 </p>
               </div>
               <button onClick={() => setShowDetail(false)} style={btnGhostStyle}>
@@ -373,6 +395,7 @@ export function CronogramaPage() {
                 setForm({
                   clienteId: selectedEvent.clienteId,
                   categoriaId: selectedEvent.categoriaId,
+                  paqueteId: selectedEvent.paqueteId,
                   tematicaId: selectedEvent.tematicaId ?? null,
                   tipoEvento: selectedEvent.tipoEvento ?? '',
                   nombreCumpleanero: selectedEvent.nombreCumpleanero ?? '',
@@ -414,10 +437,38 @@ export function CronogramaPage() {
 
             <div style={sectionStyle}>
               <div style={stepLabelStyle}>1. Cliente *</div>
-              <select value={form.clienteId} onChange={(e) => setForm((p) => ({ ...p, clienteId: Number(e.target.value) }))} style={selectStyle}>
-                <option value={0}>Seleccionar cliente...</option>
-                {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombreCompleto}</option>)}
-              </select>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={clienteSearch}
+                  onChange={(e) => { setClienteSearch(e.target.value); setShowClienteDropdown(true); if (e.target.value === '') setForm((p) => ({ ...p, clienteId: 0 })); }}
+                  onFocus={() => setShowClienteDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowClienteDropdown(false), 150)}
+                  style={selectStyle}
+                  placeholder="Buscar cliente por nombre..."
+                />
+                {showClienteDropdown && filteredClientes.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                    backgroundColor: '#fff', border: '1px solid #d1d5db', borderRadius: '8px',
+                    maxHeight: '180px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  }}>
+                    {filteredClientes.map((c) => (
+                      <div
+                        key={c.id}
+                        onMouseDown={() => handleSelectCliente(c)}
+                        style={{
+                          padding: '10px 14px', cursor: 'pointer', fontSize: '14px',
+                          backgroundColor: form.clienteId === c.id ? '#eff6ff' : '#fff',
+                          borderBottom: '1px solid #f1f5f9',
+                        }}
+                      >
+                        <span style={{ fontWeight: 500 }}>{c.nombreCompleto}</span>
+                        <span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: '8px' }}>{c.dni}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div style={sectionStyle}>
@@ -444,9 +495,25 @@ export function CronogramaPage() {
               )}
             </div>
 
+            {form.categoriaId > 0 && (
+              <div style={sectionStyle}>
+                <div style={stepLabelStyle}>3. Paquete *</div>
+                {paquetes.length > 0 ? (
+                  <select value={form.paqueteId} onChange={(e) => setForm((p) => ({ ...p, paqueteId: Number(e.target.value) }))} style={selectStyle}>
+                    <option value={0}>Seleccionar paquete...</option>
+                    {paquetes.map((p) => <option key={p.id} value={p.id}>{p.nombre} - S/{p.precioBase}</option>)}
+                  </select>
+                ) : (
+                  <p style={{ color: '#94a3b8', fontSize: '13px', margin: '4px 0' }}>
+                    No hay paquetes para esta categoria. Crea uno en la seccion Paquetes.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div style={sectionStyle}>
               <div style={{ ...stepLabelStyle, display: 'flex', justifyContent: 'space-between' }}>
-                <span>3. Tematica (opcional)</span>
+                <span>4. Tematica (opcional)</span>
                 {form.categoriaId > 0 && (
                   <button type="button" onClick={() => { setQuickTemNombre(''); setQuickTemError(''); setQuickTem(true); }} style={miniAddStyle}>+ Crear</button>
                 )}
@@ -474,12 +541,12 @@ export function CronogramaPage() {
             </div>
 
             <div style={sectionStyle}>
-              <div style={stepLabelStyle}>4. Tipo de evento (opcional)</div>
+              <div style={stepLabelStyle}>5. Tipo de evento (opcional)</div>
               <input value={form.tipoEvento} onChange={(e) => setForm((p) => ({ ...p, tipoEvento: e.target.value }))} style={inputStyle} placeholder="Ej: Cumpleanos con show de magia, Cena de gala..." maxLength={100} />
             </div>
 
             <div style={sectionStyle}>
-              <div style={stepLabelStyle}>5. Cumpleanero (opcional)</div>
+              <div style={stepLabelStyle}>6. Cumpleanero (opcional)</div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input value={form.nombreCumpleanero} onChange={(e) => setForm((p) => ({ ...p, nombreCumpleanero: e.target.value }))} style={inputStyle} placeholder="Nombre" maxLength={150} />
                 <input type="number" value={form.edadCumpleanero || ''} onChange={(e) => setForm((p) => ({ ...p, edadCumpleanero: Number(e.target.value) }))} style={{ ...inputStyle, width: '80px' }} placeholder="Edad" />
@@ -487,7 +554,7 @@ export function CronogramaPage() {
             </div>
 
             <div style={sectionStyle}>
-              <div style={stepLabelStyle}>6. Fecha y hora</div>
+              <div style={stepLabelStyle}>7. Fecha y hora</div>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
                 <input type="date" value={form.fechaEvento} onChange={(e) => setForm((p) => ({ ...p, fechaEvento: e.target.value }))} style={inputStyle} />
                 <input type="time" value={form.horaInicio.substring(0, 5)} onChange={(e) => setForm((p) => ({ ...p, horaInicio: e.target.value }))} style={inputStyle} />
@@ -496,13 +563,13 @@ export function CronogramaPage() {
             </div>
 
             <div style={sectionStyle}>
-              <div style={stepLabelStyle}>7. Ubicacion</div>
+              <div style={stepLabelStyle}>8. Ubicacion</div>
               <input value={form.direccion} onChange={(e) => setForm((p) => ({ ...p, direccion: e.target.value }))} style={{ ...inputStyle, marginBottom: '6px' }} placeholder="Direccion *" />
               <input value={form.referencia} onChange={(e) => setForm((p) => ({ ...p, referencia: e.target.value }))} style={inputStyle} placeholder="Referencia (opcional)" />
             </div>
 
             <div style={{ ...sectionStyle, marginBottom: 0 }}>
-              <div style={stepLabelStyle}>8. Detalles adicionales</div>
+              <div style={stepLabelStyle}>9. Detalles adicionales</div>
               <input type="number" value={form.aforoEstimado || ''} onChange={(e) => setForm((p) => ({ ...p, aforoEstimado: Number(e.target.value) }))} style={{ ...inputStyle, marginBottom: '6px' }} placeholder="Aforo estimado" />
               <div style={{ marginBottom: '6px' }}>
                 <span style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>Color</span>
@@ -556,7 +623,7 @@ const overlayStyle: React.CSSProperties = {
 
 const panelStyle: React.CSSProperties = {
   backgroundColor: '#fff', borderRadius: '16px',
-  padding: '28px', width: '100%', maxHeight: '85vh',
+  padding: '24px', width: '100%', maxWidth: '560px', maxHeight: '80vh',
   overflow: 'hidden', display: 'flex', flexDirection: 'column',
   boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
   animation: 'slideUp 0.2s ease',
