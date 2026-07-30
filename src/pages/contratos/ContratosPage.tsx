@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
-import { contratosApi, paquetesApi, eventosApi } from '../../api';
+import { contratosApi, eventosApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import type { Contrato, ContratoRequest, Paquete, Evento } from '../../types';
+import type { Contrato, ContratoRequest, Evento } from '../../types';
 import { ESTADOS_CONTRATO } from '../../utils/constants';
 
 const emptyForm: ContratoRequest = {
-  eventoId: 0, paqueteId: 0, costoMovilidad: 0,
+  eventoId: 0, costoMovilidad: 0,
   montoAdelanto: 0, duracion: '', observaciones: '',
 };
 
@@ -17,7 +17,6 @@ export function ContratosPage() {
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null);
   const [form, setForm] = useState<ContratoRequest>(emptyForm);
   const [eventos, setEventos] = useState<Evento[]>([]);
-  const [paquetes, setPaquetes] = useState<Paquete[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadError, setDownloadError] = useState('');
   const [downloading, setDownloading] = useState(false);
@@ -35,12 +34,12 @@ export function ContratosPage() {
   useEffect(() => {
     load();
     eventosApi.getCalendario({ inicio: '2020-01-01', fin: '2030-12-31', size: 100 }).then((r) => setEventos(r.content));
-    paquetesApi.getAll(0, 100).then((r) => setPaquetes(r.content));
   }, [load]);
 
   const openCreate = () => { setForm(emptyForm); setShowForm(true); };
 
   const handleSubmit = async () => {
+    if (!form.eventoId) return;
     await contratosApi.create(form);
     setShowForm(false);
     load();
@@ -117,7 +116,6 @@ export function ContratosPage() {
         columns={[
           { key: 'id', header: '#' },
           { key: 'clienteNombre', header: 'Cliente' },
-          { key: 'paqueteNombre', header: 'Paquete' },
           { key: 'fechaEvento', header: 'Fecha Evento' },
           { key: 'montoTotal', header: 'Monto Total' },
           {
@@ -151,13 +149,6 @@ export function ContratosPage() {
                 {eventos.map((ev) => <option key={ev.id} value={ev.id}>{ev.clienteNombre} - {ev.fechaEvento}</option>)}
               </select>
             </div>
-            <div style={{ marginBottom: '10px' }}>
-              <label style={labelStyle}>Paquete</label>
-              <select value={form.paqueteId} onChange={(e) => setForm((p) => ({ ...p, paqueteId: Number(e.target.value) }))} style={inputStyle}>
-                <option value={0}>Seleccionar...</option>
-                {paquetes.map((p) => <option key={p.id} value={p.id}>{p.nombre} - S/{p.precioBase}</option>)}
-              </select>
-            </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               <div style={{ flex: 1, marginBottom: '10px' }}>
                 <label style={labelStyle}>Costo Movilidad</label>
@@ -178,7 +169,7 @@ export function ContratosPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button onClick={handleSubmit} style={{ ...styles.addBtn, flex: 1 }}>Guardar</button>
+              <button onClick={handleSubmit} disabled={!form.eventoId} style={{ ...styles.addBtn, flex: 1 }}>Guardar</button>
               <button onClick={() => setShowForm(false)} style={cancelBtnStyle}>Cancelar</button>
             </div>
           </div>
@@ -190,7 +181,6 @@ export function ContratosPage() {
           <div style={{ ...styles.modalCard, maxWidth: '560px' }}>
             <h3>Contrato #{selectedContrato.id}</h3>
             <p><strong>Cliente:</strong> {selectedContrato.clienteNombre}</p>
-            <p><strong>Paquete:</strong> {selectedContrato.paqueteNombre}</p>
             <p><strong>Monto Total:</strong> S/{selectedContrato.montoTotal.toFixed(2)}</p>
             <p><strong>Adelanto:</strong> S/{selectedContrato.montoAdelanto.toFixed(2)}</p>
             <p><strong>Pendiente:</strong> S/{selectedContrato.montoPendiente.toFixed(2)}</p>
