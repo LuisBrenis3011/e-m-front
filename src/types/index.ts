@@ -173,8 +173,6 @@ export interface Paquete {
   descripcion: string;
   categoriaId: number;
   categoriaNombre: string;
-  tematicaId: number;
-  tematicaNombre: string;
   precioBase: number;
   duracionBaseHoras: number;
   detalles: PaqueteDetalle[];
@@ -185,7 +183,6 @@ export interface PaqueteRequest {
   nombre: string;
   descripcion: string;
   categoriaId: number;
-  tematicaId: number;
   precioBase: number;
   duracionBaseHoras: number;
   detalles: PaqueteDetalleRequest[];
@@ -197,6 +194,9 @@ export interface Evento {
   clienteNombre: string;
   categoriaId: number;
   categoriaNombre: string;
+  paqueteId: number;
+  paqueteNombre: string;
+  paquetePrecio: number;
   tematicaId: number | null;
   tematicaNombre: string | null;
   tipoEvento: string;
@@ -216,6 +216,7 @@ export interface Evento {
 export interface EventoRequest {
   clienteId: number;
   categoriaId: number;
+  paqueteId: number;
   tematicaId?: number | null;
   tipoEvento: string;
   nombreCumpleanero: string;
@@ -242,8 +243,6 @@ export interface ContratoDetalle {
 export interface Contrato {
   id: number;
   eventoId: number;
-  paqueteId: number;
-  paqueteNombre: string;
   clienteNombre: string;
   fechaEvento: string;
   costoMovilidad: number;
@@ -258,7 +257,6 @@ export interface Contrato {
 
 export interface ContratoRequest {
   eventoId: number;
-  paqueteId: number;
   costoMovilidad: number;
   montoAdelanto: number;
   duracion: string;
