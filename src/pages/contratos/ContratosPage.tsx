@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import api from '../../api/client';
 import { contratosApi, eventosApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -40,7 +41,21 @@ export function ContratosPage() {
 
   const handleSubmit = async () => {
     if (!form.eventoId) return;
-    await contratosApi.create(form);
+    const contrato = await contratosApi.create(form);
+    const stored = localStorage.getItem(`adicionales_${form.eventoId}`);
+    if (stored) {
+      const items = JSON.parse(stored);
+      for (const item of items) {
+        await api.post(`/contratos/${contrato.id}/detalles`, {
+          inventarioId: item.inventarioId,
+          cantidad: item.cantidad,
+          precioUnitario: item.precioUnitario,
+          tipoDetalle: 'ADICIONAL',
+          orden: 100,
+        });
+      }
+      localStorage.removeItem(`adicionales_${form.eventoId}`);
+    }
     setShowForm(false);
     load();
   };
