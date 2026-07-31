@@ -188,14 +188,48 @@ export function ContratosPage() {
             <p><strong>Observaciones:</strong> {selectedContrato.observaciones}</p>
 
             {selectedContrato.detalles?.length > 0 && (
-              <>
-                <h4 style={{ margin: '16px 0 8px' }}>Items:</h4>
-                {selectedContrato.detalles.map((d) => (
-                  <div key={d.id} style={{ fontSize: '13px', padding: '4px 0' }}>
-                    {d.inventarioNombre} x{d.cantidadIncluida} - S/{d.precioUnitario} {d.esObsequio ? '(Obsequio)' : ''}
-                  </div>
-                ))}
-              </>
+              <div style={{ marginTop: '16px' }}>
+                {(() => {
+                  const incluye = selectedContrato.detalles.filter((d) => d.tipoDetalle === 'INCLUYE');
+                  const obsequios = selectedContrato.detalles.filter((d) => d.tipoDetalle === 'OBSEQUIO');
+                  const adicionales = selectedContrato.detalles.filter((d) => d.tipoDetalle === 'ADICIONAL');
+
+                  return (
+                    <>
+                      {incluye.length > 0 && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <h4 style={sectionTitleStyle}>RECURSOS BASICOS</h4>
+                          {incluye.map((d) => (
+                            <div key={d.id} style={{ fontSize: '13px', padding: '3px 0', color: '#334155' }}>
+                              {d.cantidad}x {d.inventarioNombre} — S/{d.precioUnitario.toFixed(2)} = S/{d.subtotal.toFixed(2)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {obsequios.length > 0 && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <h4 style={{ ...sectionTitleStyle, color: '#10B981' }}>OBSEQUIOS</h4>
+                          {obsequios.map((d) => (
+                            <div key={d.id} style={{ fontSize: '13px', padding: '3px 0', color: '#334155' }}>
+                              {d.cantidad}x {d.inventarioNombre} — Gratis
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {adicionales.length > 0 && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <h4 style={{ ...sectionTitleStyle, color: '#F59E0B' }}>ITEMS ADICIONALES</h4>
+                          {adicionales.map((d) => (
+                            <div key={d.id} style={{ fontSize: '13px', padding: '3px 0', color: '#334155' }}>
+                              {d.cantidad}x {d.inventarioNombre} — S/{d.precioUnitario.toFixed(2)} = S/{d.subtotal.toFixed(2)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             )}
 
             <div style={{ marginTop: '12px' }}>
@@ -230,6 +264,7 @@ export function ContratosPage() {
 
 const labelStyle: React.CSSProperties = { fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' };
 const inputStyle: React.CSSProperties = { width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' };
+const sectionTitleStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#3B82F6', margin: '0 0 4px', letterSpacing: '0.5px' };
 const cancelBtnStyle: React.CSSProperties = { padding: '10px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer' };
 
 const styles: Record<string, React.CSSProperties> = {

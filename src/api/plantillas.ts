@@ -19,4 +19,6 @@ export const plantillasApi = {
   deactivate: (id: number) => api.patch(`/plantillas/${id}/deactivate`),
 
   delete: (id: number) => api.delete(`/plantillas/${id}`),
+
+  reloadDefault: () => api.post('/plantillas/reload-default'),
 };

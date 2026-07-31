@@ -156,6 +156,7 @@ export interface PaqueteDetalleRequest {
   cantidadIncluida: number;
   precioUnitario: number;
   esObsequio: boolean;
+  orden: number;
 }
 
 export interface PaqueteDetalle {
@@ -165,6 +166,7 @@ export interface PaqueteDetalle {
   cantidadIncluida: number;
   precioUnitario: number;
   esObsequio: boolean;
+  orden: number;
 }
 
 export interface Paquete {
@@ -235,14 +237,18 @@ export interface ContratoDetalle {
   id: number;
   inventarioId: number;
   inventarioNombre: string;
-  cantidadIncluida: number;
+  cantidad: number;
   precioUnitario: number;
+  subtotal: number;
   esObsequio: boolean;
+  tipoDetalle: 'INCLUYE' | 'OBSEQUIO' | 'ADICIONAL';
+  orden: number;
 }
 
 export interface Contrato {
   id: number;
   eventoId: number;
+  eventoTipo: string;
   clienteNombre: string;
   fechaEvento: string;
   costoMovilidad: number;
