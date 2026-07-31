@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { paquetesApi, categoriasApi, inventarioApi } from '../../api';
+import { paquetesApi, categoriasApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
-import type { Paquete, PaqueteRequest, Categoria, Inventario } from '../../types';
+import { InventoryPickerModal, type PickedItem } from '../../components/ui/InventoryPickerModal';
+import type { Paquete, PaqueteRequest, Categoria } from '../../types';
 
 const emptyForm: PaqueteRequest = {
   nombre: '', descripcion: '', categoriaId: 0,
@@ -15,11 +16,8 @@ export function PaquetesPage() {
   const [form, setForm] = useState<PaqueteRequest>(emptyForm);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [searchRecurso, setSearchRecurso] = useState('');
-  const [recursoResults, setRecursoResults] = useState<Inventario[]>([]);
-  const [searchObsequio, setSearchObsequio] = useState('');
-  const [obsequioResults, setObsequioResults] = useState<Inventario[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerEsObsequio, setPickerEsObsequio] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,30 +48,55 @@ export function PaquetesPage() {
     setShowForm(true);
   };
 
-  const handleSearchRecurso = async (q: string) => {
-    setSearchRecurso(q);
-    if (q.length < 1) { setRecursoResults([]); return; }
-    const res = await inventarioApi.search(q);
-    setRecursoResults(res);
+  const handlePickerConfirm = (items: PickedItem[]) => {
+    const existingIds = new Set(form.detalles.filter((d) => d.esObsequio === pickerEsObsequio).map((d) => d.inventarioId));
+    const newItems = items
+      .filter((it) => !existingIds.has(it.inventarioId))
+      .map((it, i) => ({
+        inventarioId: it.inventarioId,
+        cantidadIncluida: it.cantidad,
+        precioUnitario: it.precioUnitario,
+        esObsequio: pickerEsObsequio,
+        orden: form.detalles.length + i + 1,
+      }));
+
+    const updated = form.detalles.map((d) => {
+      if (d.esObsequio !== pickerEsObsequio) return d;
+      const match = items.find((it) => it.inventarioId === d.inventarioId);
+      return match ? { ...d, cantidadIncluida: match.cantidad } : d;
+    });
+
+    const merged = [...updated];
+    for (const ni of newItems) {
+      if (!merged.some((d) => d.inventarioId === ni.inventarioId)) {
+        merged.push(ni);
+      }
+    }
+
+    const removedIds = new Set(items.map((i) => i.inventarioId));
+    const filtered = merged.filter((d) => {
+      if (d.esObsequio !== pickerEsObsequio) return true;
+      return removedIds.has(d.inventarioId);
+    });
+
+    setForm((p) => ({ ...p, detalles: filtered }));
+    setPickerOpen(false);
   };
 
-  const handleSearchObsequio = async (q: string) => {
-    setSearchObsequio(q);
-    if (q.length < 1) { setObsequioResults([]); return; }
-    const res = await inventarioApi.search(q);
-    setObsequioResults(res);
-  };
-
-  const addItem = (item: Inventario, esObsequio: boolean) => {
+  const incrementDetalle = (idx: number) => {
     setForm((p) => ({
       ...p,
-      detalles: [
-        ...p.detalles,
-        { inventarioId: item.id, cantidadIncluida: 1, precioUnitario: item.precioReferencial, esObsequio, orden: p.detalles.length + 1 },
-      ],
+      detalles: p.detalles.map((d, i) => i === idx ? { ...d, cantidadIncluida: d.cantidadIncluida + 1 } : d),
     }));
-    if (esObsequio) { setSearchObsequio(''); setObsequioResults([]); }
-    else { setSearchRecurso(''); setRecursoResults([]); }
+  };
+
+  const decrementDetalle = (idx: number) => {
+    setForm((p) => ({
+      ...p,
+      detalles: p.detalles
+        .map((d, i) => i === idx ? { ...d, cantidadIncluida: d.cantidadIncluida - 1 } : d)
+        .filter((d) => d.cantidadIncluida > 0),
+    }));
   };
 
   const removeDetalle = (idx: number) => {
@@ -98,6 +121,13 @@ export function PaquetesPage() {
 
   const recursos = form.detalles.filter((d) => !d.esObsequio);
   const obsequios = form.detalles.filter((d) => d.esObsequio);
+
+  const recursosInit: PickedItem[] = recursos.map((d) => ({
+    inventarioId: d.inventarioId, inventarioNombre: '', cantidad: d.cantidadIncluida, precioUnitario: d.precioUnitario,
+  }));
+  const obsequiosInit: PickedItem[] = obsequios.map((d) => ({
+    inventarioId: d.inventarioId, inventarioNombre: '', cantidad: d.cantidadIncluida, precioUnitario: d.precioUnitario,
+  }));
 
   return (
     <div>
@@ -127,9 +157,17 @@ export function PaquetesPage() {
         loading={loading}
       />
 
+      <InventoryPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={handlePickerConfirm}
+        initialItems={pickerEsObsequio ? obsequiosInit : recursosInit}
+        title={pickerEsObsequio ? 'Seleccionar obsequios' : 'Seleccionar recursos basicos'}
+      />
+
       {showForm && (
         <div style={styles.modal}>
-          <div style={{ ...styles.modalCard, maxWidth: '700px' }}>
+          <div style={{ ...styles.modalCard, maxWidth: '600px' }}>
             <h3 style={{ margin: '0 0 16px' }}>{editing ? 'Editar Paquete' : 'Crear Paquete'}</h3>
 
             <div style={{ display: 'flex', gap: '12px' }}>
@@ -158,82 +196,40 @@ export function PaquetesPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-              {/* RECURSOS BASICOS */}
-              <div style={{ flex: 1, borderRight: '1px solid #e2e8f0', paddingRight: '16px' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#3B82F6', margin: '0 0 8px', textTransform: 'uppercase' }}>
-                  Recursos basicos
-                </h4>
-                <div style={{ position: 'relative', marginBottom: '8px' }}>
-                  <input
-                    value={searchRecurso}
-                    onChange={(e) => handleSearchRecurso(e.target.value)}
-                    placeholder="Buscar inventario..."
-                    style={inputStyle}
-                  />
-                  {recursoResults.length > 0 && (
-                    <div style={dropdownStyle}>
-                      {recursoResults.map((item) => (
-                        <div key={item.id} onMouseDown={() => addItem(item, false)} style={dropdownItemStyle}>
-                          <span>{item.nombre}</span>
-                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>S/{item.precioReferencial}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <div style={{ flex: 1 }}>
+                <div style={sectionHeaderStyle}>
+                  <span style={{ fontWeight: 700, fontSize: '12px', color: '#3B82F6', textTransform: 'uppercase' }}>Recursos basicos</span>
+                  <button onClick={() => { setPickerEsObsequio(false); setPickerOpen(true); }} style={addItemsBtnStyle}>+ Agregar</button>
                 </div>
-                {recursos.length === 0 && <p style={{ color: '#94a3b8', fontSize: '12px' }}>Sin recursos basicos</p>}
+                {recursos.length === 0 && <p style={{ color: '#94a3b8', fontSize: '12px', padding: '8px 0' }}>Sin recursos</p>}
                 {recursos.map((d, idx) => (
                   <div key={idx} style={itemRowStyle}>
-                    <span style={{ flex: 1, fontSize: '13px', fontWeight: 500 }}>
-                      {d.cantidadIncluida}x
+                    <span style={{ flex: 1, fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {d.cantidadIncluida}x (ID: {d.inventarioId})
                     </span>
-                    <span style={{ flex: 3, fontSize: '13px' }}>
-                      #{d.inventarioId}
-                    </span>
-                    <span style={{ flex: 1, fontSize: '13px', color: '#64748b' }}>
-                      S/{d.precioUnitario}
-                    </span>
-                    <button onClick={() => removeDetalle(form.detalles.indexOf(d))} style={removeBtnStyle}>X</button>
+                    <button onClick={() => decrementDetalle(form.detalles.indexOf(d))} style={qtyBtnStyle}>-</button>
+                    <span style={{ minWidth: '18px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>{d.cantidadIncluida}</span>
+                    <button onClick={() => incrementDetalle(form.detalles.indexOf(d))} style={qtyBtnStyle}>+</button>
+                    <button onClick={() => removeDetalle(form.detalles.indexOf(d))} style={{ ...qtyBtnStyle, color: '#dc2626' }}>X</button>
                   </div>
                 ))}
               </div>
 
-              {/* OBSEQUIOS */}
               <div style={{ flex: 1 }}>
-                <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#10B981', margin: '0 0 8px', textTransform: 'uppercase' }}>
-                  Obsequios
-                </h4>
-                <div style={{ position: 'relative', marginBottom: '8px' }}>
-                  <input
-                    value={searchObsequio}
-                    onChange={(e) => handleSearchObsequio(e.target.value)}
-                    placeholder="Buscar inventario..."
-                    style={inputStyle}
-                  />
-                  {obsequioResults.length > 0 && (
-                    <div style={dropdownStyle}>
-                      {obsequioResults.map((item) => (
-                        <div key={item.id} onMouseDown={() => addItem(item, true)} style={dropdownItemStyle}>
-                          <span>{item.nombre}</span>
-                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>S/{item.precioReferencial}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div style={sectionHeaderStyle}>
+                  <span style={{ fontWeight: 700, fontSize: '12px', color: '#10B981', textTransform: 'uppercase' }}>Obsequios</span>
+                  <button onClick={() => { setPickerEsObsequio(true); setPickerOpen(true); }} style={{ ...addItemsBtnStyle, backgroundColor: '#10B981' }}>+ Agregar</button>
                 </div>
-                {obsequios.length === 0 && <p style={{ color: '#94a3b8', fontSize: '12px' }}>Sin obsequios</p>}
+                {obsequios.length === 0 && <p style={{ color: '#94a3b8', fontSize: '12px', padding: '8px 0' }}>Sin obsequios</p>}
                 {obsequios.map((d, idx) => (
                   <div key={idx} style={itemRowStyle}>
-                    <span style={{ flex: 1, fontSize: '13px', fontWeight: 500 }}>
-                      {d.cantidadIncluida}x
+                    <span style={{ flex: 1, fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {d.cantidadIncluida}x (ID: {d.inventarioId})
                     </span>
-                    <span style={{ flex: 3, fontSize: '13px' }}>
-                      #{d.inventarioId}
-                    </span>
-                    <span style={{ flex: 1, fontSize: '13px', color: '#64748b' }}>
-                      Gratis
-                    </span>
-                    <button onClick={() => removeDetalle(form.detalles.indexOf(d))} style={removeBtnStyle}>X</button>
+                    <button onClick={() => decrementDetalle(form.detalles.indexOf(d))} style={qtyBtnStyle}>-</button>
+                    <span style={{ minWidth: '18px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>{d.cantidadIncluida}</span>
+                    <button onClick={() => incrementDetalle(form.detalles.indexOf(d))} style={qtyBtnStyle}>+</button>
+                    <button onClick={() => removeDetalle(form.detalles.indexOf(d))} style={{ ...qtyBtnStyle, color: '#dc2626' }}>X</button>
                   </div>
                 ))}
               </div>
@@ -253,10 +249,10 @@ export function PaquetesPage() {
 const labelStyle: React.CSSProperties = { fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' };
 const inputStyle: React.CSSProperties = { width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' };
 const cancelBtnStyle: React.CSSProperties = { flex: 1, padding: '10px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer' };
-const dropdownStyle: React.CSSProperties = { position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, backgroundColor: '#fff', border: '1px solid #d1d5db', borderRadius: '6px', maxHeight: '150px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' };
-const dropdownItemStyle: React.CSSProperties = { padding: '8px 12px', cursor: 'pointer', fontSize: '13px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9' };
-const itemRowStyle: React.CSSProperties = { display: 'flex', gap: '8px', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #f1f5f9' };
-const removeBtnStyle: React.CSSProperties = { color: '#dc2626', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 700 };
+const sectionHeaderStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' };
+const addItemsBtnStyle: React.CSSProperties = { padding: '4px 12px', backgroundColor: '#3B82F6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 };
+const itemRowStyle: React.CSSProperties = { display: 'flex', gap: '6px', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid #f1f5f9' };
+const qtyBtnStyle: React.CSSProperties = { width: '22px', height: '22px', borderRadius: '4px', border: '1px solid #d1d5db', backgroundColor: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155' };
 
 const styles: Record<string, React.CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' },

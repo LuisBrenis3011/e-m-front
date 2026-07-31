@@ -5,6 +5,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { eventosApi, clientesApi, categoriasApi } from '../../api';
 import { paquetesApi } from '../../api';
 import type { Evento, EventoRequest, Cliente, Categoria, Tematica, Paquete } from '../../types';
+import { InventoryPickerModal, type PickedItem } from '../../components/ui/InventoryPickerModal';
 import { ESTADOS_EVENTO, COLORES_CALENDARIO } from '../../utils/constants';
 
 const emptyForm: EventoRequest = {
@@ -42,6 +43,8 @@ export function CronogramaPage() {
   const [quickTemSaving, setQuickTemSaving] = useState(false);
   const [clienteSearch, setClienteSearch] = useState('');
   const [showClienteDropdown, setShowClienteDropdown] = useState(false);
+  const [adicionalesPicker, setAdicionalesPicker] = useState(false);
+  const [adicionalesItems, setAdicionalesItems] = useState<PickedItem[]>([]);
 
   const loadEventos = useCallback(async () => {
     const calApi = calendarRef.current?.getApi();
@@ -80,6 +83,7 @@ export function CronogramaPage() {
       setTematicas([]);
       setClienteSearch('');
       setShowClienteDropdown(false);
+      setAdicionalesItems([]);
       setShowForm(true);
     }
   };
@@ -122,12 +126,19 @@ export function CronogramaPage() {
 
     setLoading(true);
     try {
+      let eventoId: number;
       if (editing) {
         await eventosApi.update(editing.id, payload as EventoRequest);
+        eventoId = editing.id;
       } else {
-        await eventosApi.create(payload as EventoRequest);
+        const ev = await eventosApi.create(payload as EventoRequest);
+        eventoId = ev.id;
+      }
+      if (adicionalesItems.length > 0) {
+        localStorage.setItem(`adicionales_${eventoId}`, JSON.stringify(adicionalesItems));
       }
       setShowForm(false);
+      setAdicionalesItems([]);
       await loadEventos();
     } catch (err: any) {
       const msg = err?.response?.data?.message
@@ -337,7 +348,7 @@ export function CronogramaPage() {
       {/* Modal: Detalle del evento */}
       {showDetail && selectedEvent && (
         <div style={overlayStyle} onClick={() => setShowDetail(false)}>
-          <div style={{ ...panelStyle, maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ ...panelStyle, maxWidth: '520px', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
               <div>
                 <div style={{
@@ -421,6 +432,14 @@ export function CronogramaPage() {
       )}
 
       {/* Modal: Formulario crear/editar evento */}
+      <InventoryPickerModal
+        open={adicionalesPicker}
+        onClose={() => setAdicionalesPicker(false)}
+        onConfirm={(items) => { setAdicionalesItems(items); setAdicionalesPicker(false); }}
+        initialItems={adicionalesItems}
+        title="Agregar items adicionales"
+      />
+
       {showForm && (
         <div style={overlayStyle}>
           <div style={{ ...panelStyle, maxWidth: '560px', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
@@ -541,12 +560,28 @@ export function CronogramaPage() {
             </div>
 
             <div style={sectionStyle}>
-              <div style={stepLabelStyle}>5. Tipo de evento (opcional)</div>
+              <div style={{ ...stepLabelStyle, display: 'flex', justifyContent: 'space-between' }}>
+                <span>5. Items adicionales (opcional)</span>
+                <button type="button" onClick={() => setAdicionalesPicker(true)} style={miniAddStyle}>+ Agregar</button>
+              </div>
+              {adicionalesItems.length === 0 && (
+                <p style={{ color: '#94a3b8', fontSize: '13px', margin: '4px 0' }}>Sin items adicionales</p>
+              )}
+              {adicionalesItems.map((item) => (
+                <div key={item.inventarioId} style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '3px 0', fontSize: '13px' }}>
+                  <span style={{ flex: 1 }}>{item.cantidad}x {item.inventarioNombre}</span>
+                  <button type="button" onClick={() => setAdicionalesItems((prev) => prev.filter((it) => it.inventarioId !== item.inventarioId))} style={{ color: '#dc2626', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 700 }}>X</button>
+                </div>
+              ))}
+            </div>
+
+            <div style={sectionStyle}>
+              <div style={stepLabelStyle}>6. Tipo de evento (opcional)</div>
               <input value={form.tipoEvento} onChange={(e) => setForm((p) => ({ ...p, tipoEvento: e.target.value }))} style={inputStyle} placeholder="Ej: Cumpleanos con show de magia, Cena de gala..." maxLength={100} />
             </div>
 
             <div style={sectionStyle}>
-              <div style={stepLabelStyle}>6. Cumpleanero (opcional)</div>
+              <div style={stepLabelStyle}>7. Cumpleanero (opcional)</div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input value={form.nombreCumpleanero} onChange={(e) => setForm((p) => ({ ...p, nombreCumpleanero: e.target.value }))} style={inputStyle} placeholder="Nombre" maxLength={150} />
                 <input type="number" value={form.edadCumpleanero || ''} onChange={(e) => setForm((p) => ({ ...p, edadCumpleanero: Number(e.target.value) }))} style={{ ...inputStyle, width: '80px' }} placeholder="Edad" />
@@ -554,7 +589,7 @@ export function CronogramaPage() {
             </div>
 
             <div style={sectionStyle}>
-              <div style={stepLabelStyle}>7. Fecha y hora</div>
+              <div style={stepLabelStyle}>8. Fecha y hora</div>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
                 <input type="date" value={form.fechaEvento} onChange={(e) => setForm((p) => ({ ...p, fechaEvento: e.target.value }))} style={inputStyle} />
                 <input type="time" value={form.horaInicio.substring(0, 5)} onChange={(e) => setForm((p) => ({ ...p, horaInicio: e.target.value }))} style={inputStyle} />
@@ -563,13 +598,13 @@ export function CronogramaPage() {
             </div>
 
             <div style={sectionStyle}>
-              <div style={stepLabelStyle}>8. Ubicacion</div>
+              <div style={stepLabelStyle}>9. Ubicacion</div>
               <input value={form.direccion} onChange={(e) => setForm((p) => ({ ...p, direccion: e.target.value }))} style={{ ...inputStyle, marginBottom: '6px' }} placeholder="Direccion *" />
               <input value={form.referencia} onChange={(e) => setForm((p) => ({ ...p, referencia: e.target.value }))} style={inputStyle} placeholder="Referencia (opcional)" />
             </div>
 
             <div style={{ ...sectionStyle, marginBottom: 0 }}>
-              <div style={stepLabelStyle}>9. Detalles adicionales</div>
+              <div style={stepLabelStyle}>10. Detalles adicionales</div>
               <input type="number" value={form.aforoEstimado || ''} onChange={(e) => setForm((p) => ({ ...p, aforoEstimado: Number(e.target.value) }))} style={{ ...inputStyle, marginBottom: '6px' }} placeholder="Aforo estimado" />
               <div style={{ marginBottom: '6px' }}>
                 <span style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>Color</span>
