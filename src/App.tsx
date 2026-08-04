@@ -5,6 +5,7 @@ import { MainLayout } from './components/layout/MainLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { RegisterAccountPage } from './pages/auth/RegisterAccountPage';
+import { OAuthCallbackPage } from './pages/auth/OAuthCallbackPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { CategoriasPage } from './pages/categorias/CategoriasPage';
 import { TematicasPage } from './pages/tematicas/TematicasPage';
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/register-account" element={<RegisterAccountPage />} />
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
