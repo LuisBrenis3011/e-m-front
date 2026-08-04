@@ -6,6 +6,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { RegisterAccountPage } from './pages/auth/RegisterAccountPage';
 import { OAuthCallbackPage } from './pages/auth/OAuthCallbackPage';
+import { OAuthCompleteRegistrationPage } from './pages/auth/OAuthCompleteRegistrationPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { CategoriasPage } from './pages/categorias/CategoriasPage';
 import { TematicasPage } from './pages/tematicas/TematicasPage';
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/register-account" element={<RegisterAccountPage />} />
           <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+          <Route path="/oauth/complete-registration" element={<OAuthCompleteRegistrationPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>

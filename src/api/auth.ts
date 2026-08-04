@@ -28,4 +28,7 @@ export const authApi = {
 
   changePassword: (oldPassword: string, newPassword: string) =>
     api.post('/auth/change-password', { oldPassword, newPassword }),
+
+  registerGoogle: (data: { email: string; nombre: string; apellido: string; ruc: string; telefono: string }) =>
+    api.post<JwtResponse>('/auth/register-google', data).then((r) => r.data),
 };

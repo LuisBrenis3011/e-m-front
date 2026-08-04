@@ -17,10 +17,13 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType>(null!);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<JwtResponse | null>(null);
+  const [user, setUser] = useState<JwtResponse | null>(() => {
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored) : null;
+  });
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [proveedor, setProveedor] = useState<Proveedor | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => localStorage.getItem('user') === null);
 
   const bootstrap = useCallback(async () => {
     const token = localStorage.getItem('token');
