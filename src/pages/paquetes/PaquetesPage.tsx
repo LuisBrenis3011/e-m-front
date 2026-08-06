@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { paquetesApi, categoriasApi } from '../../api';
+import { paquetesApi, categoriasApi, inventarioApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { InventoryPickerModal, type PickedItem } from '../../components/ui/InventoryPickerModal';
-import type { Paquete, PaqueteRequest, Categoria } from '../../types';
+import { confirmAction, showSuccess } from '../../utils/swal';
+import type { Paquete, PaqueteRequest, Categoria, Inventario } from '../../types';
 
 const emptyForm: PaqueteRequest = {
   nombre: '', descripcion: '', categoriaId: 0,
@@ -15,6 +16,7 @@ export function PaquetesPage() {
   const [editing, setEditing] = useState<Paquete | null>(null);
   const [form, setForm] = useState<PaqueteRequest>(emptyForm);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [inventarioMap, setInventarioMap] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerEsObsequio, setPickerEsObsequio] = useState(false);
@@ -23,7 +25,7 @@ export function PaquetesPage() {
     setLoading(true);
     try {
       const res = await paquetesApi.getAll();
-      setData(res.content.filter((p) => p.estado === 'ACTIVO'));
+      setData(res.content);
     } finally {
       setLoading(false);
     }
@@ -32,9 +34,14 @@ export function PaquetesPage() {
   useEffect(() => {
     load();
     categoriasApi.getAll().then(setCategorias);
+    inventarioApi.getAll(0, 500).then((r) => {
+      const map = new Map<number, string>();
+      r.content.forEach((item: Inventario) => map.set(item.id, item.nombre));
+      setInventarioMap(map);
+    });
   }, [load]);
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
+  const openCreate = () => { setEditing(null); setForm({ ...emptyForm }); setShowForm(true); };
   const openEdit = (p: Paquete) => {
     setEditing(p);
     setForm({
@@ -49,59 +56,39 @@ export function PaquetesPage() {
   };
 
   const handlePickerConfirm = (items: PickedItem[]) => {
-    const existingIds = new Set(form.detalles.filter((d) => d.esObsequio === pickerEsObsequio).map((d) => d.inventarioId));
-    const newItems = items
-      .filter((it) => !existingIds.has(it.inventarioId))
-      .map((it, i) => ({
+    setForm((p) => {
+      const other = p.detalles.filter((d) => d.esObsequio !== pickerEsObsequio);
+      const sectionItems = items.map((it, i) => ({
         inventarioId: it.inventarioId,
         cantidadIncluida: it.cantidad,
         precioUnitario: it.precioUnitario,
         esObsequio: pickerEsObsequio,
-        orden: form.detalles.length + i + 1,
+        orden: i + 1,
       }));
-
-    const updated = form.detalles.map((d) => {
-      if (d.esObsequio !== pickerEsObsequio) return d;
-      const match = items.find((it) => it.inventarioId === d.inventarioId);
-      return match ? { ...d, cantidadIncluida: match.cantidad } : d;
+      return { ...p, detalles: [...other, ...sectionItems] };
     });
-
-    const merged = [...updated];
-    for (const ni of newItems) {
-      if (!merged.some((d) => d.inventarioId === ni.inventarioId)) {
-        merged.push(ni);
-      }
-    }
-
-    const removedIds = new Set(items.map((i) => i.inventarioId));
-    const filtered = merged.filter((d) => {
-      if (d.esObsequio !== pickerEsObsequio) return true;
-      return removedIds.has(d.inventarioId);
-    });
-
-    setForm((p) => ({ ...p, detalles: filtered }));
     setPickerOpen(false);
   };
 
-  const incrementDetalle = (idx: number) => {
-    setForm((p) => ({
-      ...p,
-      detalles: p.detalles.map((d, i) => i === idx ? { ...d, cantidadIncluida: d.cantidadIncluida + 1 } : d),
-    }));
-  };
-
-  const decrementDetalle = (idx: number) => {
+  const updateDetalle = (inventarioId: number, esObsequio: boolean, delta: number) => {
     setForm((p) => ({
       ...p,
       detalles: p.detalles
-        .map((d, i) => i === idx ? { ...d, cantidadIncluida: d.cantidadIncluida - 1 } : d)
+        .map((d) => d.inventarioId === inventarioId && d.esObsequio === esObsequio
+          ? { ...d, cantidadIncluida: d.cantidadIncluida + delta }
+          : d)
         .filter((d) => d.cantidadIncluida > 0),
     }));
   };
 
-  const removeDetalle = (idx: number) => {
-    setForm((p) => ({ ...p, detalles: p.detalles.filter((_, i) => i !== idx) }));
+  const removeDetalle = (inventarioId: number, esObsequio: boolean) => {
+    setForm((p) => ({
+      ...p,
+      detalles: p.detalles.filter((d) => !(d.inventarioId === inventarioId && d.esObsequio === esObsequio)),
+    }));
   };
+
+  const getNombre = (inventarioId: number) => inventarioMap.get(inventarioId) ?? `#${inventarioId}`;
 
   const handleSubmit = async () => {
     if (editing) {
@@ -110,12 +97,15 @@ export function PaquetesPage() {
       await paquetesApi.create(form);
     }
     setShowForm(false);
+    showSuccess(editing ? 'Paquete actualizado.' : 'Paquete creado.');
     load();
   };
 
-  const handleDeactivate = async (id: number) => {
-    if (!confirm('Desactivar paquete?')) return;
-    await paquetesApi.deactivate(id);
+  const handleDelete = async (id: number) => {
+    const ok = await confirmAction('Eliminar paquete', 'Esta accion no se puede deshacer.', 'Eliminar', '#dc2626');
+    if (!ok) return;
+    await paquetesApi.delete(id);
+    showSuccess('Paquete eliminado.');
     load();
   };
 
@@ -123,10 +113,10 @@ export function PaquetesPage() {
   const obsequios = form.detalles.filter((d) => d.esObsequio);
 
   const recursosInit: PickedItem[] = recursos.map((d) => ({
-    inventarioId: d.inventarioId, inventarioNombre: '', cantidad: d.cantidadIncluida, precioUnitario: d.precioUnitario,
+    inventarioId: d.inventarioId, inventarioNombre: getNombre(d.inventarioId), cantidad: d.cantidadIncluida, precioUnitario: d.precioUnitario,
   }));
   const obsequiosInit: PickedItem[] = obsequios.map((d) => ({
-    inventarioId: d.inventarioId, inventarioNombre: '', cantidad: d.cantidadIncluida, precioUnitario: d.precioUnitario,
+    inventarioId: d.inventarioId, inventarioNombre: getNombre(d.inventarioId), cantidad: d.cantidadIncluida, precioUnitario: d.precioUnitario,
   }));
 
   return (
@@ -148,7 +138,7 @@ export function PaquetesPage() {
             render: (p) => (
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => openEdit(p)} style={styles.actionBtn}>Editar</button>
-                <button onClick={() => handleDeactivate(p.id)} style={{ ...styles.actionBtn, color: '#dc2626' }}>Desactivar</button>
+                <button onClick={() => handleDelete(p.id)} style={{ ...styles.actionBtn, color: '#dc2626' }}>Eliminar</button>
               </div>
             ),
           },
@@ -167,11 +157,11 @@ export function PaquetesPage() {
 
       {showForm && (
         <div style={styles.modal}>
-          <div style={{ ...styles.modalCard, maxWidth: '600px' }}>
+          <div style={{ ...styles.modalCard, maxWidth: '640px' }}>
             <h3 style={{ margin: '0 0 16px' }}>{editing ? 'Editar Paquete' : 'Crear Paquete'}</h3>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ flex: 2, marginBottom: '10px' }}>
+              <div style={{ flex: 1, marginBottom: '10px' }}>
                 <label style={labelStyle}>Nombre</label>
                 <input value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} style={inputStyle} />
               </div>
@@ -182,6 +172,11 @@ export function PaquetesPage() {
                   {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div style={{ marginBottom: '10px' }}>
+              <label style={labelStyle}>Descripcion</label>
+              <input value={form.descripcion} onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))} style={inputStyle} />
             </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>
@@ -202,15 +197,15 @@ export function PaquetesPage() {
                   <button onClick={() => { setPickerEsObsequio(false); setPickerOpen(true); }} style={addItemsBtnStyle}>+ Agregar</button>
                 </div>
                 {recursos.length === 0 && <p style={{ color: '#94a3b8', fontSize: '12px', padding: '8px 0' }}>Sin recursos</p>}
-                {recursos.map((d, idx) => (
-                  <div key={idx} style={itemRowStyle}>
+                {recursos.map((d) => (
+                  <div key={d.inventarioId} style={itemRowStyle}>
                     <span style={{ flex: 1, fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {d.cantidadIncluida}x (ID: {d.inventarioId})
+                      {getNombre(d.inventarioId)}
                     </span>
-                    <button onClick={() => decrementDetalle(form.detalles.indexOf(d))} style={qtyBtnStyle}>-</button>
+                    <button onClick={() => updateDetalle(d.inventarioId, false, -1)} style={qtyBtnStyle}>-</button>
                     <span style={{ minWidth: '18px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>{d.cantidadIncluida}</span>
-                    <button onClick={() => incrementDetalle(form.detalles.indexOf(d))} style={qtyBtnStyle}>+</button>
-                    <button onClick={() => removeDetalle(form.detalles.indexOf(d))} style={{ ...qtyBtnStyle, color: '#dc2626' }}>X</button>
+                    <button onClick={() => updateDetalle(d.inventarioId, false, 1)} style={qtyBtnStyle}>+</button>
+                    <button onClick={() => removeDetalle(d.inventarioId, false)} style={{ ...qtyBtnStyle, color: '#dc2626' }}>X</button>
                   </div>
                 ))}
               </div>
@@ -221,15 +216,15 @@ export function PaquetesPage() {
                   <button onClick={() => { setPickerEsObsequio(true); setPickerOpen(true); }} style={{ ...addItemsBtnStyle, backgroundColor: '#10B981' }}>+ Agregar</button>
                 </div>
                 {obsequios.length === 0 && <p style={{ color: '#94a3b8', fontSize: '12px', padding: '8px 0' }}>Sin obsequios</p>}
-                {obsequios.map((d, idx) => (
-                  <div key={idx} style={itemRowStyle}>
+                {obsequios.map((d) => (
+                  <div key={d.inventarioId} style={itemRowStyle}>
                     <span style={{ flex: 1, fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {d.cantidadIncluida}x (ID: {d.inventarioId})
+                      {getNombre(d.inventarioId)}
                     </span>
-                    <button onClick={() => decrementDetalle(form.detalles.indexOf(d))} style={qtyBtnStyle}>-</button>
+                    <button onClick={() => updateDetalle(d.inventarioId, true, -1)} style={qtyBtnStyle}>-</button>
                     <span style={{ minWidth: '18px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>{d.cantidadIncluida}</span>
-                    <button onClick={() => incrementDetalle(form.detalles.indexOf(d))} style={qtyBtnStyle}>+</button>
-                    <button onClick={() => removeDetalle(form.detalles.indexOf(d))} style={{ ...qtyBtnStyle, color: '#dc2626' }}>X</button>
+                    <button onClick={() => updateDetalle(d.inventarioId, true, 1)} style={qtyBtnStyle}>+</button>
+                    <button onClick={() => removeDetalle(d.inventarioId, true)} style={{ ...qtyBtnStyle, color: '#dc2626' }}>X</button>
                   </div>
                 ))}
               </div>

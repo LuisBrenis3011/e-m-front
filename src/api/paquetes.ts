@@ -19,4 +19,6 @@ export const paquetesApi = {
     api.put<Paquete>(`/paquetes/${id}`, data).then((r) => r.data),
 
   deactivate: (id: number) => api.patch(`/paquetes/${id}/deactivate`),
+
+  delete: (id: number) => api.delete(`/paquetes/${id}`),
 };

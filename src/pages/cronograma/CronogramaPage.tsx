@@ -7,6 +7,7 @@ import { paquetesApi } from '../../api';
 import type { Evento, EventoRequest, Cliente, Categoria, Tematica, Paquete } from '../../types';
 import { InventoryPickerModal, type PickedItem } from '../../components/ui/InventoryPickerModal';
 import { ESTADOS_EVENTO, COLORES_CALENDARIO } from '../../utils/constants';
+import { showSuccess } from '../../utils/swal';
 
 const emptyForm: EventoRequest = {
   clienteId: 0, categoriaId: 0, paqueteId: 0, tematicaId: null, tipoEvento: '',
@@ -112,6 +113,14 @@ export function CronogramaPage() {
     if (!form.categoriaId) { setError('Seleccione una categoria.'); return; }
     if (!form.paqueteId) { setError('Seleccione un paquete.'); return; }
     if (!form.fechaEvento) { setError('Seleccione una fecha.'); return; }
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    if (form.fechaEvento < today) { setError('No se pueden programar eventos en fechas pasadas.'); return; }
+    if (form.fechaEvento === today && form.horaInicio) {
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      if (form.horaInicio.substring(0, 5) < currentTime) { setError('No se pueden programar eventos en horarios pasados.'); return; }
+    }
     if (!form.horaInicio) { setError('Ingrese la hora de inicio.'); return; }
     if (!form.direccion.trim()) { setError('Ingrese la direccion del evento.'); return; }
 
@@ -139,6 +148,7 @@ export function CronogramaPage() {
       }
       setShowForm(false);
       setAdicionalesItems([]);
+      showSuccess(editing ? 'Evento actualizado.' : 'Evento creado.');
       await loadEventos();
     } catch (err: any) {
       const msg = err?.response?.data?.message
@@ -153,6 +163,7 @@ export function CronogramaPage() {
 
   const changeEstado = async (id: number, estado: string) => {
     await eventosApi.changeEstado(id, estado);
+    showSuccess(`Evento ${estado.toLowerCase()}.`);
     setShowDetail(false);
     setShowDayEvents(false);
     loadEventos();
@@ -591,7 +602,7 @@ export function CronogramaPage() {
             <div style={sectionStyle}>
               <div style={stepLabelStyle}>8. Fecha y hora</div>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
-                <input type="date" value={form.fechaEvento} onChange={(e) => setForm((p) => ({ ...p, fechaEvento: e.target.value }))} style={inputStyle} />
+                <input type="date" min={new Date().toISOString().split('T')[0]} value={form.fechaEvento} onChange={(e) => setForm((p) => ({ ...p, fechaEvento: e.target.value }))} style={inputStyle} />
                 <input type="time" value={form.horaInicio.substring(0, 5)} onChange={(e) => setForm((p) => ({ ...p, horaInicio: e.target.value }))} style={inputStyle} />
               </div>
               <input type="time" value={form.horaFinEstimada ? form.horaFinEstimada.substring(0, 5) : ''} onChange={(e) => setForm((p) => ({ ...p, horaFinEstimada: e.target.value }))} style={{ ...inputStyle, width: '50%' }} placeholder="Hora fin (opcional)" />
