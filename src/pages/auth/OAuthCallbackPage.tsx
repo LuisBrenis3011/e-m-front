@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { showInfo } from '../../utils/swal';
 
 export function OAuthCallbackPage() {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ export function OAuthCallbackPage() {
       }));
       window.location.href = '/dashboard';
     } else if (error === 'not_registered') {
-      alert(`El email ${email} no esta registrado. Completa tu registro.`);
+      showInfo(`El email ${email} no esta registrado. Completa tu registro.`);
       navigate(`/oauth/complete-registration?email=${encodeURIComponent(email ?? '')}&nombre=${encodeURIComponent(nombre ?? '')}&apellido=${encodeURIComponent(apellido ?? '')}`, { replace: true });
     } else {
       navigate('/login', { replace: true });

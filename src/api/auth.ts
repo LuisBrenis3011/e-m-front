@@ -31,4 +31,14 @@ export const authApi = {
 
   registerGoogle: (data: { email: string; nombre: string; apellido: string; ruc: string; telefono: string }) =>
     api.post<JwtResponse>('/auth/register-google', data).then((r) => r.data),
+
+  uploadLogo: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api
+      .post<{ logoUrl: string }>('/auth/proveedor/logo', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
 };

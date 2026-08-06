@@ -44,7 +44,7 @@ export function RegisterPage() {
 
   return (
     <div style={styles.wrapper}>
-      <form onSubmit={handleSubmit} style={styles.card}>
+      <form onSubmit={handleSubmit} style={styles.card} autoComplete="off">
         <h1 style={styles.title}>Registrar Empresa</h1>
         <p style={styles.subtitle}>Primero registra tu empresa y la cuenta del administrador</p>
 

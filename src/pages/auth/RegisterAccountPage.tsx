@@ -41,7 +41,7 @@ export function RegisterAccountPage() {
 
   return (
     <div style={styles.wrapper}>
-      <form onSubmit={handleSubmit} style={styles.card}>
+      <form onSubmit={handleSubmit} style={styles.card} autoComplete="off">
         <h1 style={styles.title}>Crear Cuenta</h1>
         <p style={styles.subtitle}>Registrate como empleado de una empresa existente</p>
 

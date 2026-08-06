@@ -26,7 +26,7 @@ export function LoginPage() {
 
   return (
     <div style={styles.wrapper}>
-      <form onSubmit={handleSubmit} style={styles.card}>
+      <form onSubmit={handleSubmit} style={styles.card} autoComplete="off">
         <h1 style={styles.title}>E&M Animaciones</h1>
         <p style={styles.subtitle}>Inicia sesion para continuar</p>
 
