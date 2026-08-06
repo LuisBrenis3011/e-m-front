@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { clientesApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { confirmDelete, showSuccess } from '../../utils/swal';
 import type { Cliente, ClienteRequest } from '../../types';
 
 const emptyForm: ClienteRequest = {
@@ -40,12 +41,15 @@ export function ClientesPage() {
       await clientesApi.create(form);
     }
     setShowForm(false);
+    showSuccess(editing ? 'Cliente actualizado.' : 'Cliente creado.');
     load();
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Eliminar cliente?')) return;
+    const ok = await confirmDelete('Eliminar cliente?');
+    if (!ok) return;
     await clientesApi.delete(id);
+    showSuccess('Cliente eliminado.');
     load();
   };
 

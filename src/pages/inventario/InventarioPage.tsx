@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { inventarioApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { confirmDelete, showSuccess } from '../../utils/swal';
 import type { Inventario, InventarioRequest } from '../../types';
 
 const emptyForm: InventarioRequest = { nombre: '', descripcion: '', cantidadDisponible: 0, precioReferencial: 0 };
@@ -41,12 +42,15 @@ export function InventarioPage() {
       await inventarioApi.create(form);
     }
     setShowForm(false);
+    showSuccess(editing ? 'Item actualizado.' : 'Item creado.');
     load();
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Eliminar item?')) return;
+    const ok = await confirmDelete('Eliminar item?');
+    if (!ok) return;
     await inventarioApi.delete(id);
+    showSuccess('Item eliminado.');
     load();
   };
 

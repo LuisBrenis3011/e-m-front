@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { authApi } from '../../api';
+import { showSuccess } from '../../utils/swal';
 
 export function PerfilPage() {
   const { proveedor, refreshProveedor } = useAuth();
@@ -12,11 +13,10 @@ export function PerfilPage() {
     telefono: '',
     email: '',
   });
-  const [saved, setSaved] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [passError, setPassError] = useState('');
-  const [passSaved, setPassSaved] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   useEffect(() => {
     if (proveedor) {
@@ -35,22 +35,34 @@ export function PerfilPage() {
     e.preventDefault();
     await authApi.updateProveedor(form);
     await refreshProveedor();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    showSuccess('Perfil actualizado.');
   };
 
   const handleChangePassword = async (e: FormEvent) => {
     e.preventDefault();
     setPassError('');
-    setPassSaved(false);
     try {
       await authApi.changePassword(oldPassword, newPassword);
+      showSuccess('Contrasena actualizada.');
       setOldPassword('');
       setNewPassword('');
-      setPassSaved(true);
-      setTimeout(() => setPassSaved(false), 3000);
     } catch (err: any) {
       setPassError(err?.response?.data?.message ?? 'Error al cambiar contrasena.');
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      await authApi.uploadLogo(file);
+      showSuccess('Logo actualizado.');
+      await refreshProveedor();
+    } catch {
+      showSuccess('Error al subir el logo.');
+    } finally {
+      setLogoUploading(false);
     }
   };
 
@@ -77,9 +89,28 @@ export function PerfilPage() {
           <button type="submit" style={{ padding: '10px 24px', backgroundColor: '#3B82F6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>
             Guardar Cambios
           </button>
-          {saved && <span style={{ color: '#10B981', fontSize: '14px' }}>Guardado!</span>}
         </div>
       </form>
+
+      <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', maxWidth: '560px', marginBottom: '24px' }}>
+        <h3 style={{ margin: '0 0 16px', fontSize: '16px', color: '#1e293b' }}>Logo de la Empresa</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          {proveedor?.logoUrl ? (
+            <img src={`/api${proveedor.logoUrl}`} alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+          ) : (
+            <div style={{ width: '80px', height: '80px', borderRadius: '8px', border: '2px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '12px' }}>
+              Sin logo
+            </div>
+          )}
+          <div>
+            <label style={{ padding: '8px 16px', backgroundColor: '#3B82F6', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, display: 'inline-block' }}>
+              {logoUploading ? 'Subiendo...' : 'Subir logo'}
+              <input type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+            </label>
+            <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>JPG, PNG. Max 2MB</p>
+          </div>
+        </div>
+      </div>
 
       <form onSubmit={handleChangePassword} style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', maxWidth: '560px' }}>
         <h3 style={{ margin: '0 0 16px', fontSize: '16px', color: '#1e293b' }}>Cambiar Contrasena</h3>
@@ -96,7 +127,6 @@ export function PerfilPage() {
           <button type="submit" style={{ padding: '10px 24px', backgroundColor: '#3B82F6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>
             Cambiar Contrasena
           </button>
-          {passSaved && <span style={{ color: '#10B981', fontSize: '14px' }}>Contrasena actualizada!</span>}
         </div>
       </form>
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { plantillasApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { confirmAction, showSuccess } from '../../utils/swal';
 import type { Plantilla, PlantillaRequest } from '../../types';
 import { TIPOS_PLANTILLA } from '../../utils/constants';
 
@@ -43,18 +44,23 @@ export function PlantillasPage() {
       await plantillasApi.create(form);
     }
     setShowForm(false);
+    showSuccess(editing ? 'Plantilla actualizada.' : 'Plantilla creada.');
     load();
   };
 
   const handleDeactivate = async (id: number) => {
-    if (!confirm('Desactivar plantilla?')) return;
+    const ok = await confirmAction('Desactivar plantilla', 'La plantilla pasara a estado inactivo.', 'Desactivar', '#dc2626');
+    if (!ok) return;
     await plantillasApi.deactivate(id);
+    showSuccess('Plantilla desactivada.');
     load();
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Eliminar plantilla?')) return;
+    const ok = await confirmAction('Eliminar plantilla', 'Esta accion no se puede deshacer.', 'Eliminar', '#dc2626');
+    if (!ok) return;
     await plantillasApi.delete(id);
+    showSuccess('Plantilla eliminada.');
     load();
   };
 

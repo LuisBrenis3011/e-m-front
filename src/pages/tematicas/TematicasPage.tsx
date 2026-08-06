@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { categoriasApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
+import { confirmDelete, showError, showSuccess } from '../../utils/swal';
 import type { Categoria, Tematica } from '../../types';
 
 interface TematicaForm {
@@ -75,6 +76,7 @@ export function TematicasPage() {
         });
       }
       setShowForm(false);
+      showSuccess(editing ? 'Tematica actualizada.' : 'Tematica creada.');
       await load();
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Error al guardar.');
@@ -84,12 +86,14 @@ export function TematicasPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Eliminar esta tematica?')) return;
+    const ok = await confirmDelete('Eliminar esta tematica?');
+    if (!ok) return;
     try {
       await categoriasApi.deleteTematica(id);
+      showSuccess('Tematica eliminada.');
       await load();
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Error al eliminar.');
+      showError(err?.response?.data?.message ?? 'Error al eliminar.');
     }
   };
 

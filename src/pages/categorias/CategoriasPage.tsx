@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { categoriasApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
+import { confirmDelete, showError, showSuccess } from '../../utils/swal';
 import type { Categoria } from '../../types';
 
 interface CategoriaForm {
@@ -47,6 +48,7 @@ export function CategoriasPage() {
         await categoriasApi.create(form);
       }
       setShowForm(false);
+      showSuccess(editing ? 'Categoria actualizada.' : 'Categoria creada.');
       await load();
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Error al guardar.');
@@ -56,12 +58,14 @@ export function CategoriasPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Eliminar esta categoria? Tambien se eliminaran sus tematicas asociadas.')) return;
+    const ok = await confirmDelete('Eliminar esta categoria? Tambien se eliminaran sus tematicas asociadas.');
+    if (!ok) return;
     try {
       await categoriasApi.delete(id);
+      showSuccess('Categoria eliminada.');
       await load();
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Error al eliminar.');
+      showError(err?.response?.data?.message ?? 'Error al eliminar.');
     }
   };
 
