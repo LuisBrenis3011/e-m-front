@@ -277,7 +277,7 @@ export interface Pago {
   metodoPago: MetodoPago;
   codigoOperacion: string;
   notas: string;
-  comprobanteUrl: string | null;
+  urlComprobante: string | null;
   estado: 'PENDIENTE' | 'VERIFICADO' | 'RECHAZADO';
   fechaPago: string;
 }
