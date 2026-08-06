@@ -26,4 +26,6 @@ export const pagosApi = {
 
   rechazar: (id: number, motivo: string) =>
     api.patch(`/pagos/${id}/rechazar`, null, { params: { motivo } }),
+
+  delete: (id: number) => api.delete(`/pagos/${id}`),
 };

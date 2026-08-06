@@ -1,10 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/client';
-import { contratosApi, eventosApi } from '../../api';
+import { contratosApi, eventosApi, pagosApi, paquetesApi } from '../../api';
 import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import type { Contrato, ContratoRequest, Evento } from '../../types';
+import { AuthImage } from '../../components/ui/AuthImage';
+import type { Contrato, ContratoRequest, Evento, Pago } from '../../types';
 import { ESTADOS_CONTRATO } from '../../utils/constants';
+import { showSuccess } from '../../utils/swal';
+import { confirmAction } from '../../utils/swal';
 
 const emptyForm: ContratoRequest = {
   eventoId: 0, costoMovilidad: 0,
@@ -16,21 +19,51 @@ export function ContratosPage() {
   const [showForm, setShowForm] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null);
+  const [pagosHistorial, setPagosHistorial] = useState<Pago[]>([]);
   const [form, setForm] = useState<ContratoRequest>(emptyForm);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadError, setDownloadError] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [showPagoForm, setShowPagoForm] = useState(false);
+  const [pagoTipo, setPagoTipo] = useState('ADELANTO');
+  const [pagoMonto, setPagoMonto] = useState('');
+  const [pagoMetodo, setPagoMetodo] = useState('YAPE');
+  const [pagoCodigoOp, setPagoCodigoOp] = useState('');
+  const [pagoNotas, setPagoNotas] = useState('');
+  const [pagoFile, setPagoFile] = useState<File | null>(null);
+  const [filter, setFilter] = useState<'todo' | 'semana' | 'mes'>('todo');
+
+  const getSemana = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const lunes = new Date(now); lunes.setDate(now.getDate() - ((day + 6) % 7));
+    const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+    return { desde: lunes.toISOString().split('T')[0], hasta: domingo.toISOString().split('T')[0] };
+  };
+
+  const getMes = () => {
+    const now = new Date();
+    const inicio = new Date(now.getFullYear(), now.getMonth(), 1);
+    const fin = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { desde: inicio.toISOString().split('T')[0], hasta: fin.toISOString().split('T')[0] };
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await contratosApi.getAll();
+      let desde: string | undefined, hasta: string | undefined;
+      if (filter === 'semana') {
+        const s = getSemana(); desde = s.desde; hasta = s.hasta;
+      } else if (filter === 'mes') {
+        const m = getMes(); desde = m.desde; hasta = m.hasta;
+      }
+      const res = await contratosApi.getAll(0, 100, desde, hasta);
       setData(res.content);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filter]);
 
   useEffect(() => {
     load();
@@ -57,19 +90,56 @@ export function ContratosPage() {
       localStorage.removeItem(`adicionales_${form.eventoId}`);
     }
     setShowForm(false);
+    showSuccess('Contrato creado.');
     load();
   };
 
   const openDetail = async (c: Contrato) => {
-    const detail = await contratosApi.getById(c.id);
+    const [detail, pagos] = await Promise.all([
+      contratosApi.getById(c.id),
+      pagosApi.getByContrato(c.id).then((r) => r.content).catch(() => [] as Pago[]),
+    ]);
     setSelectedContrato(detail);
+    setPagosHistorial(pagos);
     setShowDetail(true);
   };
 
   const changeEstado = async (id: number, estado: string) => {
     await contratosApi.changeEstado(id, estado);
+    showSuccess(`Contrato ${estado.toLowerCase()}.`);
     setShowDetail(false);
     load();
+  };
+
+  const handleDeleteContrato = async (id: number) => {
+    const ok = await confirmAction('Eliminar contrato', 'Esta accion no se puede deshacer.', 'Eliminar', '#dc2626');
+    if (!ok) return;
+    await contratosApi.delete(id);
+    showSuccess('Contrato eliminado.');
+    load();
+  };
+
+  const handlePagoSubmit = async () => {
+    if (!selectedContrato || !pagoMonto) return;
+    const fd = new FormData();
+    fd.append('contratoId', String(selectedContrato.id));
+    fd.append('tipoPago', pagoTipo);
+    fd.append('monto', pagoMonto);
+    fd.append('metodoPago', pagoMetodo);
+    fd.append('codigoOperacion', pagoCodigoOp);
+    fd.append('notas', pagoNotas);
+    if (pagoFile) fd.append('comprobante', pagoFile);
+
+    await api.post('/pagos', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+    showSuccess('Pago registrado.');
+    setShowPagoForm(false);
+
+    const [detail, pagos] = await Promise.all([
+      contratosApi.getById(selectedContrato.id),
+      pagosApi.getByContrato(selectedContrato.id).then((r) => r.content).catch(() => [] as Pago[]),
+    ]);
+    setSelectedContrato(detail);
+    setPagosHistorial(pagos);
   };
 
   const generarPdf = async (contratoId: number) => {
@@ -117,7 +187,23 @@ export function ContratosPage() {
     <div>
       <div style={styles.header}>
         <h2 style={{ margin: 0, color: '#1e293b' }}>Contratos</h2>
-        <button onClick={openCreate} style={styles.addBtn}>+ Nuevo Contrato</button>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {(['semana', 'mes', 'todo'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{
+                padding: '6px 14px', borderRadius: '6px', border: '1px solid #d1d5db', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 600,
+                backgroundColor: filter === f ? '#3B82F6' : '#fff',
+                color: filter === f ? '#fff' : '#64748b',
+              }}
+            >
+              {f === 'semana' ? 'Semana' : f === 'mes' ? 'Mes' : 'Todo'}
+            </button>
+          ))}
+          <button onClick={openCreate} style={styles.addBtn}>+ Nuevo Contrato</button>
+        </div>
       </div>
 
       {downloadError && (
@@ -145,6 +231,7 @@ export function ContratosPage() {
                 <button onClick={() => generarPdf(c.id)} disabled={downloading} style={styles.actionBtn}>
                   {downloading ? '...' : 'PDF'}
                 </button>
+                <button onClick={() => handleDeleteContrato(c.id)} style={{ ...styles.actionBtn, color: '#dc2626' }}>Eliminar</button>
               </div>
             ),
           },
@@ -159,7 +246,18 @@ export function ContratosPage() {
             <h3>Nuevo Contrato</h3>
             <div style={{ marginBottom: '10px' }}>
               <label style={labelStyle}>Evento</label>
-              <select value={form.eventoId} onChange={(e) => setForm((p) => ({ ...p, eventoId: Number(e.target.value) }))} style={inputStyle}>
+              <select value={form.eventoId} onChange={async (e) => {
+                const id = Number(e.target.value);
+                setForm((p) => ({ ...p, eventoId: id }));
+                if (!id) return;
+                try {
+                  const evento = await eventosApi.getById(id);
+                  const pq = await paquetesApi.getById(evento.paqueteId);
+                  setForm((p) => ({ ...p, duracion: `${pq.duracionBaseHoras} horas` }));
+                } catch {
+                  // fallback
+                }
+              }} style={inputStyle}>
                 <option value={0}>Seleccionar...</option>
                 {eventos.map((ev) => <option key={ev.id} value={ev.id}>{ev.clienteNombre} - {ev.fechaEvento}</option>)}
               </select>
@@ -247,6 +345,102 @@ export function ContratosPage() {
               </div>
             )}
 
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>Pagos del Contrato #{selectedContrato.id}</h4>
+                <button
+                  onClick={async () => {
+                    setPagoTipo('ADELANTO');
+                    setPagoMonto('');
+                    setPagoMetodo('YAPE');
+                    setPagoCodigoOp('');
+                    setPagoNotas('');
+                    setPagoFile(null);
+                    if (selectedContrato) {
+                      const tieneAdelanto = pagosHistorial.some((p) => p.tipoPago === 'ADELANTO' && p.estado !== 'RECHAZADO');
+                      if (!tieneAdelanto && selectedContrato.montoAdelanto > 0) {
+                        setPagoTipo('ADELANTO');
+                        setPagoMonto(String(selectedContrato.montoAdelanto));
+                      } else if (selectedContrato.montoPendiente > 0) {
+                        setPagoTipo('SALDO');
+                        setPagoMonto(String(selectedContrato.montoPendiente));
+                      }
+                    }
+                    setShowPagoForm(true);
+                  }}
+                  style={{ padding: '6px 14px', backgroundColor: '#3B82F6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                >
+                  + Registrar Pago
+                </button>
+              </div>
+
+              {(() => {
+                const pagado = selectedContrato.montoTotal - selectedContrato.montoPendiente;
+                const pct = selectedContrato.montoTotal > 0 ? (pagado / selectedContrato.montoTotal) * 100 : 0;
+                return (
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', gap: '24px', fontSize: '13px', marginBottom: '6px' }}>
+                      <span>Total: <strong>S/ {selectedContrato.montoTotal.toFixed(2)}</strong></span>
+                      <span>Pagado: <strong style={{ color: '#10B981' }}>S/ {pagado.toFixed(2)}</strong></span>
+                      <span>Pendiente: <strong style={{ color: '#dc2626' }}>S/ {selectedContrato.montoPendiente.toFixed(2)}</strong></span>
+                      <span style={{ color: '#94a3b8' }}>{Math.round(pct)}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: '6px', backgroundColor: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', backgroundColor: '#10B981', borderRadius: '3px', transition: 'width 0.3s' }} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {pagosHistorial.length > 0 ? (
+                pagosHistorial.map((p) => (
+                  <div key={p.id} style={{ fontSize: '13px', padding: '6px 0', color: '#334155', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 600, minWidth: '70px', textAlign: 'center',
+                      backgroundColor: p.estado === 'VERIFICADO' ? '#dcfce7' : p.estado === 'RECHAZADO' ? '#fef2f2' : '#fef9c3',
+                      color: p.estado === 'VERIFICADO' ? '#166534' : p.estado === 'RECHAZADO' ? '#991b1b' : '#854d0e',
+                    }}>
+                      {p.estado === 'VERIFICADO' ? '✓ Verificado' : p.estado === 'RECHAZADO' ? '✗ Rechazado' : '⏳ Pendiente'}
+                    </span>
+                    <span style={{ minWidth: '50px' }}>{p.tipoPago.substring(0, 3)}</span>
+                    <span style={{ fontWeight: 600 }}>S/ {p.monto.toFixed(2)}</span>
+                    <span>{p.metodoPago}</span>
+                    <span style={{ color: '#94a3b8', flex: 1 }}>{p.fechaPago}</span>
+                    {p.urlComprobante && <AuthImage src={`/api/pagos/comprobante/${p.id}`} alt="Comp" style={{ width: '40px', height: '30px', objectFit: 'cover', borderRadius: '3px', cursor: 'pointer' }} onClick={() => window.open(`/api/pagos/comprobante/${p.id}`, '_blank')} />}
+                  </div>
+                ))
+              ) : (
+                <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '16px 0' }}>Sin pagos registrados</p>
+              )}
+
+              {showPagoForm && (
+                <div style={{ marginTop: '12px', padding: '14px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h5 style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 700 }}>Registrar Pago</h5>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <select value={pagoTipo} onChange={(e) => setPagoTipo(e.target.value)} style={miniSelectStyle}>
+                      <option value="ADELANTO">Adelanto</option>
+                      <option value="SALDO">Saldo</option>
+                      <option value="PAGO_TOTAL">Pago Total</option>
+                    </select>
+                    <select value={pagoMetodo} onChange={(e) => setPagoMetodo(e.target.value)} style={miniSelectStyle}>
+                      <option value="YAPE">Yape</option>
+                      <option value="PLIN">Plin</option>
+                      <option value="TRANSFERENCIA">Transferencia</option>
+                      <option value="EFECTIVO">Efectivo</option>
+                    </select>
+                    <input type="number" value={pagoMonto} onChange={(e) => setPagoMonto(e.target.value)} placeholder="Monto" style={{ ...miniSelectStyle, width: '100px' }} />
+                  </div>
+                  <input value={pagoCodigoOp} onChange={(e) => setPagoCodigoOp(e.target.value)} placeholder="Cod. operacion (opcional)" style={{ ...miniInputStyle, marginBottom: '6px' }} />
+                  <input value={pagoNotas} onChange={(e) => setPagoNotas(e.target.value)} placeholder="Notas (opcional)" style={{ ...miniInputStyle, marginBottom: '6px' }} />
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => setPagoFile(e.target.files?.[0] ?? null)} style={{ ...miniInputStyle, marginBottom: '8px' }} />
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={handlePagoSubmit} disabled={!pagoMonto} style={{ padding: '6px 14px', backgroundColor: '#3B82F6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Registrar</button>
+                    <button onClick={() => setShowPagoForm(false)} style={{ padding: '6px 14px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Cancelar</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ marginTop: '12px' }}>
               <p style={{ fontWeight: 600, marginBottom: '8px' }}>Cambiar Estado</p>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -281,6 +475,8 @@ const labelStyle: React.CSSProperties = { fontSize: '13px', fontWeight: 600, dis
 const inputStyle: React.CSSProperties = { width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' };
 const sectionTitleStyle: React.CSSProperties = { fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#3B82F6', margin: '0 0 4px', letterSpacing: '0.5px' };
 const cancelBtnStyle: React.CSSProperties = { padding: '10px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer' };
+const miniSelectStyle: React.CSSProperties = { padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '13px', flex: 1 };
+const miniInputStyle: React.CSSProperties = { width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' };
 
 const styles: Record<string, React.CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' },
